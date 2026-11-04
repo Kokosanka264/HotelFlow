@@ -6,14 +6,6 @@ class MainPanel extends StatefulWidget{
   State<MainPanel> createState() => _MainPanelState();
 }
   class _MainPanelState extends State<MainPanel> {
-  int selectedIndex = 0;
-
-  final List<String> pages = [
-    'Strona główna',
-    'Pokoje',
-    'Rezerwacje',
-    'Kalendarz',
-  ];
 
   @override
   Widget build(BuildContext context) {
