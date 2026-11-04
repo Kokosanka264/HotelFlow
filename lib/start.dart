@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'database/database_helper.dart';
-
+import 'screens/mainFrame.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseHelper.initialize();
@@ -13,15 +13,9 @@ class HotelFlow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      home: const MainFrame(),
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('My First App'),
-        ),
-        body: const Center(
-          child: Text('MY First App'),
-        ),
-      ),
+      
     );
   }
 }

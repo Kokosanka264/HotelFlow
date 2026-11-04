@@ -30,7 +30,7 @@ class DatabaseHelper {
         room_number TEXT NOT NULL UNIQUE,
         capacity INTEGER NOT NULL,
         extra_bed INTEGER NOT NULL DEFAULT 0
-        CHECK(extra_bed IN (0, 1)),
+        CHECK(extra_bed IN (0, 1))
       )
     ''');
     database.execute('''
