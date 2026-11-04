@@ -10,20 +10,27 @@ class MainFrame extends StatefulWidget {
 }
 
 class _MainFrameState extends State<MainFrame> {
-  
+  int selectedIndex = 0;
   @override
   Widget build(BuildContext context) {
-    return Container(
-      child: Row(
+    return Scaffold(
+      body: Row(
         children: [
-          SidebarPanel(),
+          SidebarPanel(onPageSelected: changePage, selectedIndex: selectedIndex),
           Expanded(
-            child: MainPanel(),
+            child: MainPanel(selectedIndex: selectedIndex),
           ),
         ],
       ),
     );
   
-}
+  } 
+  void changePage(int index){
+    setState(() {
+        selectedIndex = index;
+      }
+    );
+
+  }
 
 }
