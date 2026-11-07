@@ -14,8 +14,10 @@ class HomePagePanel extends StatefulWidget {
 }
 
 class _HomePagePanelState extends State<HomePagePanel> {
-  DateTime selectedDateCheckIn = DateTime.now();
-  DateTime selectedDateCheckOut = DateTime.now();
+  late DateTime selectedDateCheckIn = formatedDate(DateTime.now());
+  late DateTime selectedDateCheckOut = selectedDateCheckIn.add(
+    const Duration(days: 1),
+  );
   bool isCheckInDateValid = true;
   bool isCheckOutDateValid = true;
   int numberOfGuests = 0;
