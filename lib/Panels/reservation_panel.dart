@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_app/Panels/list_view_panel_reservations.dart';
-import 'package:hotel_app/database/reservation_repository.dart';
-import 'package:hotel_app/models/reservation.dart';
 
 class ReservationPanel extends StatefulWidget {
   const ReservationPanel({super.key});
+  @override
   State<ReservationPanel> createState() => _ReservationPanelState();
 }
 

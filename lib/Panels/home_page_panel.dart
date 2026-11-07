@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:hotel_app/Panels/avaliable_rooms_homepage.dart';
 import 'package:hotel_app/models/room.dart';
 import 'package:flutter/material.dart';
@@ -8,13 +6,14 @@ import 'package:hotel_app/database/room_repository.dart';
 
 class HomePagePanel extends StatefulWidget {
   HomePagePanel({super.key});
-  RoomRepository roomRepository = RoomRepository();
+  final RoomRepository roomRepository = RoomRepository();
   @override
   State<HomePagePanel> createState() => _HomePagePanelState();
 }
 
 class _HomePagePanelState extends State<HomePagePanel> {
   late DateTime selectedDateCheckIn = formatedDate(DateTime.now());
+  final List<Room> selectedRooms = [];
   late DateTime selectedDateCheckOut = selectedDateCheckIn.add(
     const Duration(days: 1),
   );
@@ -51,6 +50,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
                       onDateChanged: (date) {
                         setState(() {
                           selectedDateCheckIn = date;
+                          selectedRooms.clear();
                         });
                       },
                     ),
@@ -68,6 +68,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
                       onDateChanged: (date) {
                         setState(() {
                           selectedDateCheckOut = date;
+                          selectedRooms.clear();
                         });
                       },
                     ),
@@ -139,7 +140,26 @@ class _HomePagePanelState extends State<HomePagePanel> {
               child: AvaliableRoomsView(
                 checkIn: selectedDateCheckIn,
                 checkOut: selectedDateCheckOut,
-                onRoomPressed: (room) {},
+                onRoomPressed: toggleSelectedRoom,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SizedBox(
+                width: 240,
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('Dodaj rezerwacje'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.pink,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -150,5 +170,19 @@ class _HomePagePanelState extends State<HomePagePanel> {
 
   DateTime formatedDate(DateTime date) {
     return DateTime(date.year, date.month, date.day);
+  }
+
+  void toggleSelectedRoom(Room room) {
+    setState(() {
+      final index = selectedRooms.indexWhere(
+        (selected) => selected.id == room.id,
+      );
+
+      if (index == -1) {
+        selectedRooms.add(room);
+      } else {
+        selectedRooms.removeAt(index);
+      }
+    });
   }
 }

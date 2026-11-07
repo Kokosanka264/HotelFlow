@@ -4,7 +4,7 @@ import 'package:hotel_app/models/room.dart';
 import 'package:hotel_app/widgets/room_button.dart';
 class RoomsPanel extends StatelessWidget {
    RoomsPanel({super.key});
-  RoomRepository roomRepository = RoomRepository();
+  final RoomRepository roomRepository = RoomRepository();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
