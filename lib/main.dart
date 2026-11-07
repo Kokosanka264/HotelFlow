@@ -5,6 +5,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseHelper.initialize();
   DatabaseHelper.createTables();
+  DatabaseHelper.seedRooms();
+  DatabaseHelper.seedReservations();
   runApp(const HotelFlow());
 }
 class HotelFlow extends StatelessWidget {
