@@ -1,6 +1,8 @@
-class Reservation{
+import 'package:hotel_app/models/room.dart';
+
+class Reservation {
   final int id;
-  int roomId;
+  List<Room> reservedRooms;
   String guestName;
   String guestSurname;
   String? email;
@@ -11,7 +13,7 @@ class Reservation{
 
   Reservation({
     required this.id,
-    required this.roomId,
+    required this.reservedRooms,
     required this.guestName,
     required this.guestSurname,
     this.email,
@@ -20,11 +22,13 @@ class Reservation{
     required this.checkInDate,
     required this.checkOutDate,
   });
-  int getId(){
+  int getId() {
     return id;
   }
+
   @override
   String toString() {
-    return 'Reservation for $guestName $guestSurname in room $roomId from ${checkInDate.toIso8601String().split('T')[0]} to ${checkOutDate.toIso8601String().split('T')[0]}';
+    final roomNumbers = reservedRooms.map((room) => room.roomNumber).join(', ');
+    return 'Reservation for $guestName $guestSurname in room(s) $roomNumbers from ${checkInDate.toIso8601String().split('T')[0]} to ${checkOutDate.toIso8601String().split('T')[0]}';
   }
 }

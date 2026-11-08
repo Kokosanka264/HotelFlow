@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_app/widgets/date_input_field.dart';
 import 'package:hotel_app/database/room_repository.dart';
 import 'package:hotel_app/Panels/add_reservation_panel.dart';
+
 class HomePagePanel extends StatefulWidget {
   HomePagePanel({super.key});
   final RoomRepository roomRepository = RoomRepository();
@@ -160,11 +161,22 @@ class _HomePagePanelState extends State<HomePagePanel> {
                 width: 240,
                 height: 54,
                 child: ElevatedButton.icon(
-                  onPressed: numberOfGuests>0 && numberOfGuests<=sumOfSpots ?
-                  () {
-                     AddReservationPanel( checkIn: selectedDateCheckIn, checkOut: selectedDateCheckOut, numberOfGuests: numberOfGuests, selectedRooms: selectedRooms);
-                  }
-                  : null,
+                  onPressed: numberOfGuests > 0 && numberOfGuests <= sumOfSpots
+                      ? () {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) {
+                              return AddReservationPanel(
+                                checkIn: selectedDateCheckIn,
+                                checkOut: selectedDateCheckOut,
+                                numberOfGuests: numberOfGuests,
+                                selectedRooms: selectedRooms,
+                              );
+                            },
+                          );
+                        }
+                      : null,
                   icon: const Icon(Icons.add),
                   label: const Text('Dodaj rezerwacje'),
                   style: ElevatedButton.styleFrom(
@@ -193,10 +205,10 @@ class _HomePagePanelState extends State<HomePagePanel> {
         (selected) => selected.id == room.id,
       );
       int numberOfSpots = room.getCapacity();
-      numberOfSpots += room.hasExtra() ? 1:0;
+      numberOfSpots += room.hasExtra() ? 1 : 0;
       if (index == -1) {
         selectedRooms.add(room);
-        sumOfSpots+=numberOfSpots;
+        sumOfSpots += numberOfSpots;
       } else {
         selectedRooms.removeAt(index);
         sumOfSpots -= numberOfSpots;
