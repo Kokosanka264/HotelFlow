@@ -15,4 +15,10 @@ class Room{
    String toString() {
     return 'Room $roomNumber';
   }
+   int getCapacity(){
+    return capacity;
+  }
+  bool hasExtra(){
+    return extraBed;
+  }
 }

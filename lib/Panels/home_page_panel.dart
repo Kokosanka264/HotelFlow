@@ -3,7 +3,7 @@ import 'package:hotel_app/models/room.dart';
 import 'package:flutter/material.dart';
 import 'package:hotel_app/widgets/date_input_field.dart';
 import 'package:hotel_app/database/room_repository.dart';
-
+import 'package:hotel_app/Panels/add_reservation_panel.dart';
 class HomePagePanel extends StatefulWidget {
   HomePagePanel({super.key});
   final RoomRepository roomRepository = RoomRepository();
@@ -12,6 +12,9 @@ class HomePagePanel extends StatefulWidget {
 }
 
 class _HomePagePanelState extends State<HomePagePanel> {
+  final TextEditingController _guestController = TextEditingController(
+    text: '0',
+  );
   late DateTime selectedDateCheckIn = formatedDate(DateTime.now());
   final List<Room> selectedRooms = [];
   late DateTime selectedDateCheckOut = selectedDateCheckIn.add(
@@ -20,7 +23,14 @@ class _HomePagePanelState extends State<HomePagePanel> {
   bool isCheckInDateValid = true;
   bool isCheckOutDateValid = true;
   int numberOfGuests = 0;
+  int sumOfSpots = 0;
   List<Room> avaliableRooms = [];
+
+  @override
+  void dispose() {
+    _guestController.dispose();
+    super.dispose();
+  }
 
   DateTime get today {
     final now = DateTime.now();
@@ -75,13 +85,14 @@ class _HomePagePanelState extends State<HomePagePanel> {
                   ),
                   Expanded(
                     child: TextField(
+                      controller: _guestController,
                       decoration: const InputDecoration(
                         labelText: 'Liczba Gości',
                       ),
                       keyboardType: TextInputType.number,
                       onChanged: (value) {
                         setState(() {
-                          numberOfGuests = int.tryParse(value) ?? 1;
+                          numberOfGuests = int.tryParse(value) ?? 0;
                         });
                       },
                     ),
@@ -149,7 +160,11 @@ class _HomePagePanelState extends State<HomePagePanel> {
                 width: 240,
                 height: 54,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: numberOfGuests>0 && numberOfGuests<=sumOfSpots ?
+                  () {
+                     AddReservationPanel( checkIn: selectedDateCheckIn, checkOut: selectedDateCheckOut, numberOfGuests: numberOfGuests, selectedRooms: selectedRooms);
+                  }
+                  : null,
                   icon: const Icon(Icons.add),
                   label: const Text('Dodaj rezerwacje'),
                   style: ElevatedButton.styleFrom(
@@ -177,11 +192,14 @@ class _HomePagePanelState extends State<HomePagePanel> {
       final index = selectedRooms.indexWhere(
         (selected) => selected.id == room.id,
       );
-
+      int numberOfSpots = room.getCapacity();
+      numberOfSpots += room.hasExtra() ? 1:0;
       if (index == -1) {
         selectedRooms.add(room);
+        sumOfSpots+=numberOfSpots;
       } else {
         selectedRooms.removeAt(index);
+        sumOfSpots -= numberOfSpots;
       }
     });
   }

@@ -47,8 +47,10 @@
 | Connect Search button to displayed results | 🔄 In Progress |
 | Implement multi-room selection | 🔄 In Progress | 
 | Validate total selected room capacity | ⏳ Not Started |
-| Count avaliable guests in rooms based on choosen rooms | ⏳ Not Started |
-| Impement add reservation button | ⏳ Not Started |
+| Count avaliable guests in rooms based on choosen rooms | 🔄 In Progress |
+| Impement add reservation button | 🔄 In Progress |
+| Require clicking search befor refreshing the avaliable rooms | ⏳ Not Started |
+| Remove all avaliable rooms while user changes input data | ⏳ Not Started |
 
 ## 4. Reservations
 
@@ -60,6 +62,7 @@
 | Disable navigation beyond last page | ⏳ Not Started |
 | Implement reservation search | ⏳ Not Started |
 | Implement reservation creation form | ⏳ Not Started |
+| Connect Home Page to Add Reservation| ⏳ Not Started |
 | Implement multi-room booking | ⏳ Not Started |
 | Prevent overlapping bookings during saving | ⏳ Not Started |
 | Implement reservation editing and cancellation | ⏳ Not Started |

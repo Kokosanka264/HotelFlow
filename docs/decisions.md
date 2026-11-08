@@ -124,6 +124,13 @@
 - **Trade-off:** No external API, remote alerts or real-time shared access in this version.
 - **Status:** Active scope boundary.
 
+## DEC-017 — Changing room reserving stracture
+
+- **Choice:** Instead of assigning one reservation to only one room, we can assign one reservation to multiple rooms.
+- **Why:** This makes making reservations more easy and practical.
+- **Trade-off:** Restructre most of the apps functuality.
+- **Status:** Ongoing development practise.
+
 ## Decisions still open
 
 1. **Booking schema:** one booking + join table or grouped single-room reservations; migration approach.
