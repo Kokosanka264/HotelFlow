@@ -1,8 +1,8 @@
 enum BedConfigurations {
   single,
-  double,
-  doubleCombined,
+  twin,
+  doubleBed,
   extraBed,
-  four,
-  fourCombined,
+  fourSingle,
+  doubleAndTwoSingle,
 }

@@ -173,6 +173,8 @@ DELETE FROM reservations
 WHERE email LIKE 'hotelflow-seed-%@example.invalid';
 ```
 
+The same cleanup can be run in the app with `DatabaseHelper.deleteSeedReservations()` after database initialization. It deletes matching test reservations, not unrelated reservations.
+
 Do not run destructive queries against real guest data without a verified backup.
 
 ## 9. Future multi-room schema — proposal, not implemented
