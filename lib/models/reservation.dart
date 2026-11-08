@@ -1,8 +1,10 @@
 import 'package:hotel_app/models/room.dart';
+import 'package:hotel_app/models/bed_configuration.dart';
 
 class Reservation {
   final int id;
   List<Room> reservedRooms;
+  final Map<int, BedConfigurations> bedConfigurations;
   String guestName;
   String guestSurname;
   String? email;
@@ -14,6 +16,7 @@ class Reservation {
   Reservation({
     required this.id,
     required this.reservedRooms,
+    required this.bedConfigurations,
     required this.guestName,
     required this.guestSurname,
     this.email,

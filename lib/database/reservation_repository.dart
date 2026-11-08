@@ -1,15 +1,14 @@
-
-
 import 'package:hotel_app/models/bed_configuration.dart';
 
 import 'database_helper.dart';
+
 import 'package:hotel_app/database/reservation_rooms_repository.dart';
 import 'package:hotel_app/models/reservation.dart';
 import 'package:hotel_app/models/room.dart';
 
 class ReservationRepository {
   void addReservation({
-    required Map<Room,BedConfigurations> reservedRooms,
+    required Map<Room, BedConfigurations> reservedRooms,
     required String guestName,
     required String guestSurname,
     String? email,
@@ -21,35 +20,56 @@ class ReservationRepository {
     if (guestName.trim().isEmpty ||
         guestSurname.trim().isEmpty ||
         guestCount <= 0 ||
-        checkInDate.isAfter(checkOutDate)) {
+        !checkOutDate.isAfter(checkInDate) ||
+        reservedRooms.isEmpty ||
+        reservedRooms.entries.any(
+          (entry) =>
+              !entry.key.getPossibleBedConfigurations().contains(entry.value),
+        )) {
       throw ArgumentError('Invalid reservation data.');
     }
 
-    DatabaseHelper.database.execute(
-      '''
-      INSERT INTO reservations (
-         guest_name, guest_surname, email, phone_number, guest_count, check_in_date, check_out_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''',
-      [
-        guestName,
-        guestSurname,
-        email,
-        phoneNumber,
-        guestCount,
-        checkInDate.toIso8601String().split('T')[0],
-        checkOutDate.toIso8601String().split('T')[0],
-      ],
-    );
-    final roomRepository = ReservationRoomsRepository();
-    final reservationId = DatabaseHelper.database
-    .select('SELECT last_insert_rowid() AS id')
-    .first['id'] as int;
+    final database = DatabaseHelper.database;
+    database.execute('BEGIN TRANSACTION');
+    var committed = false;
+    try {
+      database.execute(
+        '''
+        INSERT INTO reservations (
+          guest_name, guest_surname, email, phone_number, guest_count,
+          check_in_date, check_out_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          guestName,
+          guestSurname,
+          email,
+          phoneNumber,
+          guestCount,
+          checkInDate.toIso8601String().split('T')[0],
+          checkOutDate.toIso8601String().split('T')[0],
+        ],
+      );
+      final reservationId =
+          database.select('SELECT last_insert_rowid() AS id').first['id']
+              as int;
+      final roomRepository = ReservationRoomsRepository();
 
-    for (final entry in reservedRooms.entries) {
-      roomRepository.addRoomReservation(reservationId,entry.key, entry.value);
+      for (final entry in reservedRooms.entries) {
+        roomRepository.addRoomReservation(
+          reservationId,
+          entry.key,
+          entry.value,
+        );
+      }
+
+      database.execute('COMMIT');
+      committed = true;
+    } finally {
+      if (!committed) {
+        database.execute('ROLLBACK');
+      }
     }
-
   }
 
   List<Reservation> getReservationsForDate(DateTime date) {
@@ -66,6 +86,7 @@ class ReservationRepository {
       return Reservation(
         id: reservationId,
         reservedRooms: _getReservedRooms(reservationId),
+        bedConfigurations: _getBedConfigurations(reservationId),
         guestName: row['guest_name'] as String,
         guestSurname: row['guest_surname'] as String,
         email: row['email'] as String?,
@@ -93,6 +114,7 @@ class ReservationRepository {
       return Reservation(
         id: reservationId,
         reservedRooms: _getReservedRooms(reservationId),
+        bedConfigurations: _getBedConfigurations(reservationId),
         guestName: row['guest_name'] as String,
         guestSurname: row['guest_surname'] as String,
         email: row['email'] as String?,
@@ -126,5 +148,23 @@ class ReservationRepository {
           ),
         )
         .toList();
+  }
+
+  Map<int, BedConfigurations> _getBedConfigurations(int reservationId) {
+    final rows = DatabaseHelper.database.select(
+      '''
+      SELECT room_id, bed_configuration
+      FROM reservation_rooms
+      WHERE reservation_id = ?
+      ''',
+      [reservationId],
+    );
+
+    return {
+      for (final row in rows)
+        row['room_id'] as int: BedConfigurations.values.byName(
+          row['bed_configuration'] as String,
+        ),
+    };
   }
 }
