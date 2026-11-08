@@ -12,12 +12,14 @@ class AddReservationPanel extends StatefulWidget {
     required this.checkOut,
     required this.numberOfGuests,
     required this.selectedRooms,
+    this.reservationRepository,
   });
 
   final DateTime checkIn;
   final DateTime checkOut;
   final int numberOfGuests;
   final List<Room> selectedRooms;
+  final ReservationRepository? reservationRepository;
 
   @override
   State<AddReservationPanel> createState() => _AddReservationPanelState();
@@ -26,7 +28,8 @@ class AddReservationPanel extends StatefulWidget {
 class _AddReservationPanelState extends State<AddReservationPanel> {
   final _formKey = GlobalKey<FormState>();
   final _selectedConfigurations = <int, BedConfigurations>{};
-  final _reservationRepository = ReservationRepository();
+  late final _reservationRepository =
+      widget.reservationRepository ?? ReservationRepository();
 
   String _dateText(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-'
@@ -139,7 +142,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                   const Text('Nowa rezerwacja', style: TextStyle(fontSize: 24)),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).pop(false),
                   ),
                 ],
               ),
@@ -238,7 +241,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () => Navigator.of(context).pop(false),
                             child: const Text('Delete'),
                           ),
                           const SizedBox(width: 8),

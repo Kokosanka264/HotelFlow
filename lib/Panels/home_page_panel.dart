@@ -3,11 +3,18 @@ import 'package:hotel_app/models/room.dart';
 import 'package:flutter/material.dart';
 import 'package:hotel_app/widgets/date_input_field.dart';
 import 'package:hotel_app/database/room_repository.dart';
+import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/Panels/add_reservation_panel.dart';
 
 class HomePagePanel extends StatefulWidget {
-  HomePagePanel({super.key});
-  final RoomRepository roomRepository = RoomRepository();
+  HomePagePanel({
+    super.key,
+    RoomRepository? roomRepository,
+    this.reservationRepository,
+  }) : roomRepository = roomRepository ?? RoomRepository();
+
+  final RoomRepository roomRepository;
+  final ReservationRepository? reservationRepository;
   @override
   State<HomePagePanel> createState() => _HomePagePanelState();
 }
@@ -25,6 +32,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
   bool isCheckOutDateValid = true;
   int numberOfGuests = 0;
   int sumOfSpots = 0;
+  bool isSearchPressed = false;
   List<Room> avaliableRooms = [];
 
   @override
@@ -36,6 +44,39 @@ class _HomePagePanelState extends State<HomePagePanel> {
   DateTime get today {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
+  }
+
+  Future<void> _openAddReservationForm() async {
+    final reservationAdded = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AddReservationPanel(
+          checkIn: selectedDateCheckIn,
+          checkOut: selectedDateCheckOut,
+          numberOfGuests: numberOfGuests,
+          selectedRooms: selectedRooms,
+          reservationRepository: widget.reservationRepository,
+        );
+      },
+    );
+
+    if (reservationAdded != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      selectedDateCheckIn = today;
+      selectedDateCheckOut = today.add(const Duration(days: 1));
+      selectedRooms.clear();
+      sumOfSpots = 0;
+      numberOfGuests = 0;
+      _guestController.text = '0';
+      isCheckInDateValid = true;
+      isCheckOutDateValid = true;
+      isSearchPressed = false;
+      avaliableRooms = [];
+    });
   }
 
   @override
@@ -62,6 +103,8 @@ class _HomePagePanelState extends State<HomePagePanel> {
                         setState(() {
                           selectedDateCheckIn = date;
                           selectedRooms.clear();
+                          sumOfSpots = 0;
+                          isSearchPressed = false;
                         });
                       },
                     ),
@@ -80,6 +123,8 @@ class _HomePagePanelState extends State<HomePagePanel> {
                         setState(() {
                           selectedDateCheckOut = date;
                           selectedRooms.clear();
+                          sumOfSpots = 0;
+                          isSearchPressed = false;
                         });
                       },
                     ),
@@ -94,6 +139,9 @@ class _HomePagePanelState extends State<HomePagePanel> {
                       onChanged: (value) {
                         setState(() {
                           numberOfGuests = int.tryParse(value) ?? 0;
+                          selectedRooms.clear();
+                          sumOfSpots = 0;
+                          isSearchPressed = false;
                         });
                       },
                     ),
@@ -120,6 +168,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
                                 selectedDateCheckIn,
                                 selectedDateCheckOut,
                               );
+                          isSearchPressed = true;
                         });
                       } on ArgumentError catch (e) {
                         showDialog(
@@ -148,47 +197,56 @@ class _HomePagePanelState extends State<HomePagePanel> {
                 ],
               ),
             ),
-            Expanded(
-              child: AvaliableRoomsView(
-                checkIn: selectedDateCheckIn,
-                checkOut: selectedDateCheckOut,
-                onRoomPressed: toggleSelectedRoom,
+            if (isSearchPressed) ...[
+              Expanded(
+                child: AvaliableRoomsView(
+                  checkIn: selectedDateCheckIn,
+                  checkOut: selectedDateCheckOut,
+                  roomRepository: widget.roomRepository,
+                  onRoomPressed: toggleSelectedRoom,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: SizedBox(
-                width: 240,
-                height: 54,
-                child: ElevatedButton.icon(
-                  onPressed: numberOfGuests > 0 && numberOfGuests <= sumOfSpots
-                      ? () {
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (context) {
-                              return AddReservationPanel(
-                                checkIn: selectedDateCheckIn,
-                                checkOut: selectedDateCheckOut,
-                                numberOfGuests: numberOfGuests,
-                                selectedRooms: selectedRooms,
-                              );
-                            },
-                          );
-                        }
-                      : null,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Dodaj rezerwacje'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: SizedBox(
+                  height: 80,
+                  width: double.infinity,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 280,
+                        height: 60,
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              numberOfGuests > 0 && numberOfGuests <= sumOfSpots
+                              ? _openAddReservationForm
+                              : null,
+                          icon: const Icon(Icons.add, size: 24),
+                          label: const Text('Dodaj rezerwacje'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.pink,
+                            foregroundColor: Colors.white,
+                            textStyle: const TextStyle(fontSize: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        bottom: 0,
+                        child: Text(
+                          '$sumOfSpots / $numberOfGuests',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),

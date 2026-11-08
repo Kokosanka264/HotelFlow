@@ -72,6 +72,14 @@ class ReservationRepository {
     }
   }
 
+  bool removeReservationFromDb(Reservation reservation) {
+    final database = DatabaseHelper.database;
+    database.execute('DELETE FROM reservations WHERE id = ?', [reservation.id]);
+    final changes =
+        database.select('SELECT changes() AS count').first['count'] as int;
+    return changes > 0;
+  }
+
   List<Reservation> getReservationsForDate(DateTime date) {
     final String formattedDate = date.toIso8601String().split('T')[0];
     final rows = DatabaseHelper.database.select(
@@ -96,6 +104,15 @@ class ReservationRepository {
         checkOutDate: DateTime.parse(row['check_out_date'] as String),
       );
     }).toList();
+  }
+
+  int countReservations() {
+    final result = DatabaseHelper.database.select('''
+      SELECT COUNT(*) AS total
+      FROM reservations
+      WHERE check_out_date >= DATE('now');
+    ''');
+    return result.first['total'] as int;
   }
 
   List<Reservation> getReservationsPage(int page, int pageSize) {

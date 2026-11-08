@@ -15,6 +15,13 @@ class _CalendarPanelState extends State<CalendarPanel> {
   List<Reservation> reservations = [];
   DateTime selectedDate = DateTime.now();
   @override
+  void initState() {
+    super.initState();
+    selectedDate = formatedDate(DateTime.now());
+    loadReservations(selectedDate);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kalendarz')),
@@ -23,9 +30,9 @@ class _CalendarPanelState extends State<CalendarPanel> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CalendarDatePicker(
-              initialDate: DateTime.now(),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 10 * 365)),
+              initialDate: formatedDate(DateTime.now()),
+              firstDate: formatedDate(DateTime.now()),
+              lastDate: formatedDate(DateTime.now().add(const Duration(days: 10 * 365))),
               onDateChanged: (date) {
                 setState(() {
                   loadReservations(date);
@@ -50,10 +57,15 @@ class _CalendarPanelState extends State<CalendarPanel> {
   }
 
   void loadReservations(DateTime date) {
+    date = formatedDate(date);
     final results = reservationRepository.getReservationsForDate(date);
     setState(() {
       selectedDate = date;
       reservations = results;
     });
+  }
+
+  DateTime formatedDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 }

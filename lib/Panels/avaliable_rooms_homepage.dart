@@ -8,18 +8,21 @@ class AvaliableRoomsView extends StatefulWidget {
     required this.checkIn,
     required this.checkOut,
     required this.onRoomPressed,
+    this.roomRepository,
   });
 
   final DateTime checkIn;
   final DateTime checkOut;
   final void Function(Room) onRoomPressed;
+  final RoomRepository? roomRepository;
 
   @override
   State<AvaliableRoomsView> createState() => _AvaliableRoomsViewState();
 }
 
 class _AvaliableRoomsViewState extends State<AvaliableRoomsView> {
-  final RoomRepository roomRepository = RoomRepository();
+  late final RoomRepository roomRepository =
+      widget.roomRepository ?? RoomRepository();
   List<Room> avaliableRooms = [];
   final List<Room> selectedRooms = [];
 

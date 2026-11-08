@@ -35,6 +35,7 @@
 | Generate test reservations | ✅ Done |
 | Implement database migrations | ⏳ Not Started |
 | Implement database backup and restore | ⏳ Not Started |
+| Implement client database | ⏳ Not Started |
 
 ## 3. Home Page — Room Availability
 
@@ -42,15 +43,16 @@
 |---|---|
 | Implement check-in and check-out fields | ✅ Done |
 | Implement calendar date picker | ✅ Done |
-| Implement manual date validation | 🔄 In Progress |
+| Implement manual date validation | ✅ Done |
 | Implement room availability SQL query | ✅ Done |
-| Connect Search button to displayed results | 🔄 In Progress |
-| Implement multi-room selection | 🔄 In Progress | 
-| Validate total selected room capacity | ⏳ Not Started |
-| Count avaliable guests in rooms based on choosen rooms | 🔄 In Progress |
-| Impement add reservation button | 🔄 In Progress |
-| Require clicking search befor refreshing the avaliable rooms | ⏳ Not Started |
-| Remove all avaliable rooms while user changes input data | ⏳ Not Started |
+| Connect Search button to displayed results | ✅ Done |
+| Implement multi-room selection | ✅ Done | 
+| Validate total selected room capacity | ✅ Done |
+| Count avaliable guests in rooms based on choosen rooms | ✅ Done |
+| Impement add reservation button | ✅ Done |
+| Require clicking search befor refreshing the avaliable rooms | ✅ Done |
+| Remove all avaliable rooms while user changes input data | ✅ Done |
+| Implement the option when there are no avaliable rooms | ⏳ Not Started |
 
 ## 4. Reservations
 
@@ -59,33 +61,52 @@
 | Create ReservationPanel | ✅ Done |
 | Implement paginated reservation list | ✅ Done |
 | Add previous and next buttons | ✅ Done |
-| Disable navigation beyond last page | ⏳ Not Started |
+| Disable navigation beyond last page | ✅ Done |
 | Implement reservation search | ⏳ Not Started |
-| Implement reservation creation form | ⏳ Not Started |
-| Connect Home Page to Add Reservation| ⏳ Not Started |
-| Implement multi-room booking | ⏳ Not Started |
+| Implement reservation creation form | ✅ Done |
+| Connect Home Page to Add Reservation| ✅ Done |
+| Implement multi-room booking | ✅ Done |
 | Prevent overlapping bookings during saving | ⏳ Not Started |
 | Implement reservation editing and cancellation | ⏳ Not Started |
+| Implement checking current bed configuration is enough for specific number of people (extra bed case) | ⏳ Not Started |
 
 ## 5. Calendar
 
 | Task | Status |
 |---|---|
 | Create CalendarPanel | ✅ Done |
-| Display reservations for selected date | 🔄 In Progress |
-| Load today's reservations automatically | ⏳ Not Started |
+| Display reservations for selected date | ✅ Done |
+| Load today's reservations automatically | ✅ Done |
 | Improve calendar and list layout | 🔄 In Progress |
+| Make reservations clickable, so user can see an overview of reservation | ⏳ Not Started |
 
 ## 6. Room Configuration
 
 | Task | Status |
 |---|---|
 | Define bed configuration enum | ✅ Done |
-| Implement room-specific bed choices | ⏳ Not Started |
-| Assign guest counts per room | ⏳ Not Started |
-| Save bed configuration in database | ⏳ Not Started |
+| Implement room-specific bed choices | ✅ Done |
+| Assign guest counts per room | ✅ Done |
+| Save bed configuration in database | ✅ Done |
 
-## 7. Testing and Release
+## 7. Clients
+
+| Task | Status |
+|---|---|
+| Implement 'Add Client' | ⏳ Not Started |
+| Implement 'Remove Client' | ⏳ Not Started |
+| Make a ListView of all clients in database | ⏳ Not Started |
+
+## 8. Pricing
+
+| Task | Status |
+|---|---|
+| Implement pricing option | ⏳ Not Started |
+| Implement changing and updating prices | ⏳ Not Started |
+| Disable changing prices for existing reservatoins | ⏳ Not Started |
+
+
+## 9. Testing and Release
 
 | Task | Status |
 |---|---|
