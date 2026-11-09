@@ -17,6 +17,8 @@ class ReservationPreview extends StatelessWidget {
     return value == null || value.trim().isEmpty ? 'Nie podano' : value;
   }
 
+  String _price(int grosze) => '${(grosze / 100).toStringAsFixed(2)} PLN';
+
   String _configurationName(BedConfigurations? configuration) {
     return switch (configuration) {
       BedConfigurations.single => 'Pojedyncze łóżko',
@@ -52,6 +54,7 @@ class ReservationPreview extends StatelessWidget {
             Text('Liczba gości: ${reservation.guestCount}'),
             Text('Zameldowanie: ${_date(reservation.checkInDate)}'),
             Text('Wymeldowanie: ${_date(reservation.checkOutDate)}'),
+            Text('Suma rezerwacji: ${_price(reservation.totalGrosze)}'),
             const SizedBox(height: 16),
             Text(
               'Zarezerwowane pokoje',

@@ -4,7 +4,7 @@ Issue Overview
 ID	Issue	Status
 1	Reset HomePagePanel after creating a reservation	Open
 2	Show available rooms only after a valid search	Implemented — needs verification
-3	Display today's reservations when opening the calendar	Open
+3	Display today's reservations when opening the calendar	Resolved
 4	Refresh ReservationPanel after deleting a reservation	Open
 
 
@@ -13,7 +13,7 @@ Problem: After a reservation is successfully created, HomePagePanel still displa
 
 Expected behavior: Once the reservation is saved successfully, the home page should return to its initial state. Previous selections and search results should be cleared.
 
-Status: Implemented - need verfication
+Status: Resolved
 
 Verification: Create a reservation and confirm that the home page no longer shows the previous selection.
 2. Display Available Rooms Only After Search
@@ -33,7 +33,7 @@ Problem: When the user opens the calendar panel, today's reservations are not di
 
 Expected behavior: Opening CalendarPanel should automatically select today's date and load its reservations, without requiring the user to click the date.
 
-Status: Open
+Status: Resolved
 
 Verification: Open the calendar panel and confirm that today's reservations load immediately. Selecting another date should update the displayed reservations.
 4. Refresh ReservationPanel After Deleting a Reservation

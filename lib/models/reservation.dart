@@ -13,6 +13,7 @@ class Reservation {
   int guestCount;
   DateTime checkInDate;
   DateTime checkOutDate;
+  int totalGrosze;
 
   Reservation({
     required this.id,
@@ -26,6 +27,7 @@ class Reservation {
     required this.guestCount,
     required this.checkInDate,
     required this.checkOutDate,
+    this.totalGrosze = 0,
   });
   int getId() {
     return id;

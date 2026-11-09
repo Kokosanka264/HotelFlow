@@ -1,12 +1,12 @@
 # HotelFlow — Database and Data Integrity
 
-**Snapshot:** 7 November 2026, GitHub `main` `846796ed`. Source: `lib/database/database_helper.dart`, `room_repository.dart`, `reservation_repository.dart`. This is documentation of the **current schema**, with proposed improvements explicitly identified.
+**Snapshot:** 9 November 2026. Source: `lib/database/database_helper.dart`, `room_repository.dart`, `reservation_repository.dart`, and `pricing_repository.dart`. This is documentation of the **current schema**, with proposed improvements explicitly identified.
 
 ## 1. Storage architecture
 
 HotelFlow uses an **embedded SQLite database** opened by the Dart `sqlite3` package (`sqlite3.open(dbPath)`), not a remote SQL server and not `sqflite`. The connection is held in `DatabaseHelper._database`. Initialization awaits `getApplicationDocumentsDirectory()`, joins the filename `hotel.db` using the `path` package, and executes `PRAGMA foreign_keys = ON;`.
 
-As coded, data resides in the user's application Documents directory. On Windows this can be redirected to OneDrive; a local, non-synced application-data directory is preferable for a production SQLite file. `DatabaseHelper.createTables()` creates schema at startup; **there is no migration/versioning mechanism yet**.
+As coded, data resides in the user's application Documents directory. On Windows this can be redirected to OneDrive; a local, non-synced application-data directory is preferable for a production SQLite file. `DatabaseHelper.createTables()` creates schema at startup and performs the current additive `total_grosze` migration; there is still no general version table or rollback migration system.
 
 **Safety:** the database contains personal data (guest name, optionally email/phone). Never add `hotel.db` or real guest data to this public GitHub repository. Back up the database before changing schema or editing it in DB Browser for SQLite.
 
@@ -14,27 +14,39 @@ As coded, data resides in the user's application Documents directory. On Windows
 
 ```mermaid
 erDiagram
-  ROOMS ||--o{ RESERVATIONS : "booked by"
+  GUESTS ||--o{ RESERVATIONS : "owns"
+  RESERVATIONS ||--o{ RESERVATION_ROOMS : "contains"
+  ROOMS ||--o{ RESERVATION_ROOMS : "assigned"
   ROOMS {
     INTEGER id PK
     TEXT room_number UK
     INTEGER capacity
     INTEGER extra_bed
   }
-  RESERVATIONS {
+  GUESTS {
     INTEGER id PK
-    INTEGER room_id FK
     TEXT guest_name
     TEXT guest_surname
-    TEXT email "nullable"
-    TEXT phone_number "nullable"
+    TEXT email
+    TEXT phone_number
+  }
+  RESERVATIONS {
+    INTEGER id PK
+    INTEGER guest_id FK
     INTEGER guest_count
     TEXT check_in_date
     TEXT check_out_date
+    INTEGER total_grosze
+  }
+  RESERVATION_ROOMS {
+    INTEGER reservation_id PK, FK
+    INTEGER room_id PK, FK
+    TEXT bed_configuration
+    INTEGER extraBed
   }
 ```
 
-A reservation currently refers to exactly **one** room through `room_id`. It cannot yet represent a group booking spanning several room records as one logical booking.
+A reservation is linked to a guest and can contain multiple rooms through `reservation_rooms`. Each room assignment stores its bed configuration and extra-bed flag.
 
 ## 3. Schema: `rooms`
 
@@ -58,16 +70,32 @@ A reservation currently refers to exactly **one** room through `room_id`. It can
 | Column | SQLite type | Rule | Meaning |
 | --- | --- | --- | --- |
 | `id` | `INTEGER` | `PRIMARY KEY AUTOINCREMENT` | Reservation row ID |
-| `room_id` | `INTEGER` | `NOT NULL`, FK → `rooms(id)` | Booked room |
-| `guest_name` | `TEXT` | `NOT NULL` | Contact's first name |
-| `guest_surname` | `TEXT` | `NOT NULL` | Contact's surname |
-| `email` | `TEXT` | nullable | Contact email |
-| `phone_number` | `TEXT` | nullable | Contact phone |
+| `guest_id` | `INTEGER` | `NOT NULL`, FK → `guests(id)` | Guest record |
 | `guest_count` | `INTEGER` | `NOT NULL CHECK(guest_count > 0)` | Number of guests in this room |
 | `check_in_date` | `TEXT` | `NOT NULL` | Arrival date |
 | `check_out_date` | `TEXT` | `NOT NULL` | Departure date |
+| `total_grosze` | `INTEGER` | `NOT NULL`, `CHECK >= 0` | Historical final reservation total in grosze |
 
-Other constraints in code: `FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE RESTRICT` and table-level `CHECK(check_in_date < check_out_date)`; SQLite accepts the table constraint as written in the current schema. Verify existing database structure separately: `CREATE TABLE IF NOT EXISTS` does **not** retrofit constraints to an old table.
+Reservation totals are snapshots. They are calculated at booking time from the number of nights,
+each selected room's nightly rate, and enabled extra-bed nightly rates. Later pricing changes do
+not recalculate existing reservations. Older databases receive `total_grosze` through an additive
+startup migration and existing rows default to `0` because their original pricing is unavailable.
+
+## 4.1 Schema: `pricing_settings`
+
+The singleton `pricing_settings` row stores the editable default nightly rates:
+
+| Column | SQLite type | Meaning |
+| --- | --- | --- |
+| `capacity_two_grosze` | `INTEGER` | Default rate for capacity-2 rooms |
+| `capacity_four_grosze` | `INTEGER` | Default rate for capacity-4 rooms |
+| `extra_bed_grosze` | `INTEGER` | Default extra-bed rate |
+
+The initial defaults are 30,000, 50,000, and 6,000 grosze respectively (300, 500, and 60 PLN).
+Settings changes affect future booking drafts only. Reception can edit the nightly room and
+extra-bed rates per room during a booking before the snapshot total is saved.
+
+Other constraints in code: `FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE RESTRICT`, `total_grosze >= 0`, and table-level `CHECK(check_in_date < check_out_date)`. `CREATE TABLE IF NOT EXISTS` does not retrofit all constraints to an old table; the current startup migration only adds missing `total_grosze`.
 
 Dates are written by `ReservationRepository.addReservation()` as ISO calendar-day strings `YYYY-MM-DD`, via `.toIso8601String().split('T')[0]`. The test seeder uses the same format. The day and pagination queries sometimes apply `DATE(column)`; the availability query compares ISO strings directly.
 
@@ -78,7 +106,7 @@ Dates are written by `ReservationRepository.addReservation()` as ISO calendar-da
 - **Zero-night stays:** repository validation rejects `checkInDate.isAfter(checkOutDate)` but does not itself reject equality; table CHECK rejects equal stored date strings. Validate before writing, with clear UI feedback.
 - **Date normalization:** repository validity checks compare full `DateTime` values, then persist only the date. Normalize to calendar dates first.
 - **Current/upcoming boundary:** `getReservationsPage()` uses `DATE(check_out_date) >= DATE('now')`; SQLite `'now'` defaults to UTC, which may differ from local hotel dates near midnight. Choose hotel-local calendar dates explicitly.
-- **One room per record:** no linked group/booking identifier, allocated occupancy per multiple rooms, or bed layout persistence.
+- **Price breakdown:** only the final historical total is stored; individual room-price snapshots are not persisted.
 
 ## 5. Reservation overlap and availability
 
@@ -125,7 +153,7 @@ Because only 24 rooms exist, the query returns at most 24 rows, regardless of re
 ```sql
 SELECT * FROM reservations
 WHERE DATE(check_in_date) <= ?
-  AND DATE(check_out_date) > ?;
+  AND DATE(check_out_date) >= ?;
 ```
 
 **Current / future reservation page** (`getReservationsPage`):
@@ -141,22 +169,22 @@ The UI uses `page=0`, `pageSize=20`, and `offset=page*pageSize`. The last page m
 
 ## 7. Indexes
 
-The current `createTables()` creates **two indexes on the same three columns**:
+The current `createTables()` creates indexes for reservation dates, reservation-room lookup, and guest contact lookup. Verify indexes against the live database before adding more:
 
 ```sql
-CREATE INDEX IF NOT EXISTS idx_reservation_availability
-  ON reservations(room_id, check_in_date, check_out_date);
-CREATE INDEX IF NOT EXISTS idx_reservations_room_DATES
-  ON reservations(room_id, check_in_date, check_out_date);
+CREATE INDEX IF NOT EXISTS idx_reservations_dates
+  ON reservations(check_in_date, check_out_date);
+CREATE INDEX IF NOT EXISTS idx_reservation_rooms_room
+  ON reservation_rooms(room_id, reservation_id);
 ```
 
 These duplicate indexes waste space and add write overhead. **Keep one** after checking existing DBs and planned migration steps. An index for paginated date ordering could be evaluated using `EXPLAIN QUERY PLAN`; wrapping an indexed column in `DATE()` may prevent efficient index use. Do not add indexes blindly.
 
 ## 8. Test data and cleanup
 
-`seedReservations()` generates 21 intended sample bookings with Polish placeholder names, dates relative to startup, and email markers `hotelflow-seed-0@example.invalid` ... `hotelflow-seed-20@example.invalid`. It retrieves each room ID by `room_number`, checks capacity, uses intervals, verifies overlap, and skips records whose marker already exists. The loop is **best effort**: pre-existing conflicting records can reduce the number actually inserted below 21. The sample email domain is deliberately invalid.
+The current startup path calls `seedRooms()` only. No `seedReservations()` call is made from `main.dart`; any reservation seed helper or existing seed records should be treated as development data.
 
-**Current risk:** `main()` calls `seedReservations()` on **every start**. New deployments and live data must never run this automatically. Because dates are relative but email markers are fixed, restarting later does not shift existing records into the future. Guard with a development flag or remove the invocation.
+**Current risk:** `seedRooms()` still runs on every start, although `INSERT OR IGNORE` prevents duplicate room numbers. Review and guard all development seed helpers before production.
 
 Preview test data before deleting:
 
@@ -177,22 +205,22 @@ The same cleanup can be run in the app with `DatabaseHelper.deleteSeedReservatio
 
 Do not run destructive queries against real guest data without a verified backup.
 
-## 9. Future multi-room schema — proposal, not implemented
+## 9. Current multi-room schema
 
-Suggested normalized schema:
+The current normalized reservation assignment schema is:
 
 ```text
-bookings
+reservations
   id, guest_name, guest_surname, email, phone_number,
   check_in_date, check_out_date, created_at, status
 
-booking_rooms
-  id, booking_id -> bookings.id,
+reservation_rooms
+  id, reservation_id -> reservations.id,
   room_id -> rooms.id,
   guest_count, bed_configuration
 ```
 
-This permits a *single logical booking* that reserves several rooms. All room assignments for the same booking should be validated and written inside **one SQLite transaction**, including a fresh availability check. Decide how one-room legacy reservations migrate. Store `BedConfigurations` values consistently and document compatibility when enum labels change. A calendar may read from `booking_rooms` joined with `bookings`.
+This permits a *single logical reservation* that reserves several rooms. The current repository writes the reservation and its room assignments, but overlap validation and a fresh transactional availability check remain follow-up work. Store `BedConfigurations` values consistently and document compatibility when enum labels change. The calendar reads from `reservation_rooms` joined with `reservations`.
 
 ## 10. Retention and backups — policy still to agree
 

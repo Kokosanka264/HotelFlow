@@ -59,6 +59,7 @@ class DatabaseHelper {
         guest_count INTEGER NOT NULL,
         check_in_date TEXT NOT NULL,
         check_out_date TEXT NOT NULL,
+        total_grosze INTEGER NOT NULL DEFAULT 0 CHECK(total_grosze >= 0),
         CHECK(guest_count > 0),
         CHECK(CHECK_IN_DATE < CHECK_OUT_DATE),
 
@@ -66,6 +67,33 @@ class DatabaseHelper {
     REFERENCES guests(id)
     ON DELETE RESTRICT
       )
+    ''');
+
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS pricing_settings (
+        id INTEGER PRIMARY KEY CHECK(id = 1),
+        capacity_two_grosze INTEGER NOT NULL CHECK(capacity_two_grosze > 0),
+        capacity_four_grosze INTEGER NOT NULL CHECK(capacity_four_grosze > 0),
+        extra_bed_grosze INTEGER NOT NULL CHECK(extra_bed_grosze >= 0)
+      )
+    ''');
+
+    final reservationColumns = database.select(
+      'PRAGMA table_info(reservations)',
+    );
+    final hasTotalGrosze = reservationColumns.any(
+      (column) => column['name'] == 'total_grosze',
+    );
+    if (!hasTotalGrosze) {
+      database.execute(
+        'ALTER TABLE reservations ADD COLUMN total_grosze INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+
+    database.execute('''
+      INSERT OR IGNORE INTO pricing_settings (
+        id, capacity_two_grosze, capacity_four_grosze, extra_bed_grosze
+      ) VALUES (1, 30000, 50000, 6000)
     ''');
 
     database.execute('''

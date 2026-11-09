@@ -8,6 +8,15 @@ import 'package:hotel_app/models/reservation.dart';
 import 'package:hotel_app/models/room.dart';
 
 class ReservationRepository {
+  int? _nextReservationTotalGrosze;
+
+  void setNextReservationTotalGrosze(int totalGrosze) {
+    if (totalGrosze < 0) {
+      throw ArgumentError('Reservation total cannot be negative.');
+    }
+    _nextReservationTotalGrosze = totalGrosze;
+  }
+
   void addReservation({
     required Map<Room, BedConfigurations> reservedRooms,
     Map<Room, bool> extraBeds = const {},
@@ -47,14 +56,15 @@ class ReservationRepository {
         '''
         INSERT INTO reservations (
           guest_id, guest_count,
-          check_in_date, check_out_date
-        ) VALUES (?, ?, ?, ?)
+          check_in_date, check_out_date, total_grosze
+        ) VALUES (?, ?, ?, ?, ?)
         ''',
         [
           resolvedGuestId,
           guestCount,
           checkInDate.toIso8601String().split('T')[0],
           checkOutDate.toIso8601String().split('T')[0],
+          _nextReservationTotalGrosze ?? 0,
         ],
       );
       final reservationId =
@@ -74,6 +84,7 @@ class ReservationRepository {
       database.execute('COMMIT');
       committed = true;
     } finally {
+      _nextReservationTotalGrosze = null;
       if (!committed) {
         database.execute('ROLLBACK');
       }
@@ -114,6 +125,7 @@ class ReservationRepository {
         guestCount: row['guest_count'] as int,
         checkInDate: DateTime.parse(row['check_in_date'] as String),
         checkOutDate: DateTime.parse(row['check_out_date'] as String),
+        totalGrosze: row['total_grosze'] as int,
       );
     }).toList();
   }
@@ -183,6 +195,7 @@ class ReservationRepository {
         guestCount: row['guest_count'] as int,
         checkInDate: DateTime.parse(row['check_in_date'] as String),
         checkOutDate: DateTime.parse(row['check_out_date'] as String),
+        totalGrosze: row['total_grosze'] as int,
       );
     }).toList();
   }

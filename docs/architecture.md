@@ -1,6 +1,6 @@
 # HotelFlow — Architecture
 
-**Snapshot:** 2026-11-07 · `main` at `846796ed` · **development prototype**.
+**Snapshot:** 2026-11-09 · **development prototype**.
 
 This document describes **what the source code implements today**, where it differs from the intended design, and the next architectural steps. Directory names and method names preserve their current spelling.
 
@@ -16,11 +16,14 @@ Out of scope for the current build: server/API, synchronization among multiple c
 flowchart TD
   Entry[main.dart / HotelFlow] --> Frame[MainFrame: selectedIndex]
   Frame --> Sidebar[SidebarPanel + SidebarButton]
+  Frame --> Settings[Settings overlay]
   Frame --> Main[MainPanel: page switch]
   Main --> Home[HomePagePanel]
   Main --> Rooms[RoomsPanel]
   Main --> Reservations[ReservationPanel]
   Main --> Calendar[CalendarPanel]
+  Settings --> Price[PriceChangingPanel]
+  Settings --> History[Reservation history placeholder]
   Home --> Dates[DateInputField]
   Home --> Available[AvaliableRoomsView]
   Rooms --> RoomRepo[RoomRepository]
@@ -41,12 +44,12 @@ This is a **pragmatic layered UI/repository/database structure**, not a full cle
 `main.dart`:
 
 1. Calls `WidgetsFlutterBinding.ensureInitialized()`.
-2. Awaits `DatabaseHelper.initialize()`.
-3. Calls `createTables()`.
-4. Calls `seedRooms()` and `seedReservations()` (**development seeding is currently always on**).
-5. Calls `runApp(const HotelFlow())`.
+2. Starts `HotelFlow`, which displays `HotelFlowSplashScreen`.
+3. Initializes the database, creates tables, applies the additive reservation-total migration, and seeds rooms.
+4. Keeps the splash visible for at least five seconds.
+5. Shows `MainFrame` after initialization completes; initialization errors are displayed as an error screen.
 
-`MainFrame` is a `StatefulWidget` owning `selectedIndex`; `SidebarPanel` receives `selectedIndex` and `onPageSelected`. `MainPanel` maps indexes `0..3` to Home, Rooms, Reservations, Calendar. `SidebarButton` is a reusable presentation widget. The flow does not use a named-route navigator for those four areas.
+`MainFrame` is a `StatefulWidget` owning `selectedIndex` and the Settings overlay state. `SidebarPanel` receives `selectedIndex` and `onPageSelected`; Settings opens above the main content. `MainPanel` maps the other selections to Home, Rooms, Reservations, Calendar, and Guests. `SidebarButton` is reused by the main sidebar and Settings navigation. The flow does not use named routes.
 
 ## 4. UI components and responsibilities
 
@@ -58,10 +61,12 @@ This is a **pragmatic layered UI/repository/database structure**, not a full cle
 | `rooms_panel.dart` / `room_button.dart` | Lists rooms and opens room details | `loadRooms()` is called during `build` and during item creation; cache once instead of repeated DB queries |
 | `reservation_panel.dart` | Maintains `page=0`, `pageSize=20`, left/right buttons, detail dialog | Forward button never disables at last page; no total count, search field, or refresh flow |
 | `list_view_panel_reservations.dart` | Fetches page in `initState()`, refreshes in `didUpdateWidget()`, builds lazy list | Synchronous query and no explicit reload when records change without `page` change |
-| `calendar_panel.dart` | Date picker, selected date, `ReservationRepository.getReservationsForDate()` | No `initState()` load; nesting `setState` in `onDateChanged` and `loadReservations` is unnecessary; validate `Column` layout |
+| `calendar_panel.dart` | Date picker, selected-date reservation cards, status badges, detail preview, deletion | Broader historical reservation workflow is not implemented |
 | `in_this_day_reservations.dart` | Lists reservations for a chosen day | Own nested `Scaffold`/`AppBar`; simpler embedded list would reduce layout complexity |
 | `bed_configuration.dart` | Defines six enum cases | Not connected to room/booking models or persisted |
-| `add_reservation_panel.dart`, `hotel.dart` | Empty placeholders | Planned design only |
+| `settings.dart` | Settings overlay navigation with Cennik and reservation-history placeholder | History content is not implemented |
+| `price_changing_panel.dart` | Capacity-based and extra-bed nightly price editing | Seasonal pricing and per-room persistent price breakdown are not implemented |
+| `hotel_flow_splash_screen.dart` | Five-second Flutter startup screen with HotelFlow branding | Uses a fixed minimum delay |
 
 ### Current booking-search flow
 
@@ -95,25 +100,27 @@ sequenceDiagram
 
 ### Current calendar flow
 
-`CalendarPanel` holds `selectedDate` and `reservations`; selecting a date invokes `loadReservations(date)` which calls `getReservationsForDate(date)`. `DayReservations` displays the records. Because there is no initial load, opening the calendar before selecting a date can show an empty list even when today's bookings exist.
+`CalendarPanel` holds `selectedDate` and `reservations`; `initState()` loads today's records, and selecting a date invokes `loadReservations(date)`. Each card displays a `Przyjazd`, `Aktualna`, or `Wyjazd` badge and opens the reservation preview/deletion flow.
 
 ## 5. Data and domain layer
 
 Models:
 
 - `Room`: `id`, `roomNumber`, `capacity`, `extraBed` and `toString()`.
-- `Reservation`: `id`, `roomId`, `guestName`, `guestSurname`, nullable contact fields, `guestCount`, `checkInDate`, `checkOutDate` and display formatting.
-- `BedConfigurations`: `single`, `double`, `doubleCombined`, `extraBed`, `four`, `fourCombined` (not yet used in the persistence workflow).
+- `Reservation`: guest, dates, multiple reserved rooms, per-room bed/extra-bed maps, and `totalGrosze`.
+- `PricingSettings`: capacity-2, capacity-4, and extra-bed rates in integer grosze.
+- `BedConfigurations`: capacity-aware enum values persisted through `reservation_rooms`.
 
 Repositories:
 
 - `RoomRepository`: `addRoom`, `getAllRooms`, `getAvaliableRooms`.
-- `ReservationRepository`: `addReservation`, `getReservationsForDate`, `getReservationsPage`.
+- `ReservationRepository`: multi-room `addReservation`, `getReservationsForDate`, `getReservationsPage`, deletion, and reservation-total persistence.
+- `PricingRepository`: reads and writes singleton capacity-based pricing settings.
 - `DatabaseHelper`: opens DB, enables foreign keys, creates tables and indexes, seeds room/test booking data.
 
-No separate service layer, state-management library, or repository interfaces exist yet. Introduce these only when the complexity of a multi-step booking flow justifies them.
+No separate service layer, state-management library, or repository interfaces exist yet. Introduce these only when the complexity of the multi-step booking flow justifies them.
 
-## 6. Target multi-room booking architecture (not implemented)
+## 6. Current multi-room booking architecture
 
 ```mermaid
 flowchart LR
@@ -126,13 +133,13 @@ flowchart LR
   Check --> Save[Persist booking + allocated rooms]
 ```
 
-The current `reservations.room_id` enforces **one room per reservation row**. A future booking with several rooms needs a deliberate data-model change. A suggested target is `bookings` (shared guest and dates) + `booking_rooms` (one row per room, allocated guests, bed configuration), with uniqueness and overlap checks performed transactionally. This is a proposal, **not current schema**. See [`database.md`](database.md).
+The current workflow stores one reservation header and one row per assigned room in `reservation_rooms`, with guest details, dates, bed configurations, and extra-bed choices shared through the reservation. Availability and transactional overlap hardening remain follow-up work. See [`database.md`](database.md).
 
 ## 7. Reliability and performance priorities
 
 1. **Availability correctness:** treat dates as `[checkIn, checkOut)`, disallow same-day/negative stays, and re-check availability when saving inside a transaction.
 2. **Storage:** synchronous `sqlite3` queries can block the UI isolate; small data is unlikely to be an issue but heavy operations should move off the UI isolate if profiling warrants it.
-3. **Query efficiency:** use `NOT EXISTS` for free-room checks and index `(room_id, check_in_date, check_out_date)`; remove duplicate indexes.
+3. **Query efficiency:** use `NOT EXISTS` for free-room checks and maintain indexes for reservation dates and room assignments.
 4. **Pagination:** `LIMIT/OFFSET` plus `ListView.builder` and result count; the initial hotel is small but bookings accumulate.
 5. **Data protection:** keep real guest data out of Git, turn off sample booking seeding, choose a suitable local DB location, add backup/restore and retention safeguards.
 6. **Separation of concerns:** keep SQL in repositories, remove unused imports/empty callbacks, prefer immutable widget input and plain `Room`/`Reservation` models.

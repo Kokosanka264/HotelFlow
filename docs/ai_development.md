@@ -6,6 +6,8 @@ HotelFlow is developed using a combination of independent programming and AI-ass
 
 AI coding agents integrated into Visual Studio Code are used to support code analysis, debugging, refactoring, and selected implementation tasks.
 
+Recent assisted changes include the pricing repository and Settings Cennik panel, the calendar reservation status UI, the Flutter startup splash, and platform branding. These changes were checked with targeted `flutter analyze` and Flutter test commands where applicable; environment limitations are recorded when a platform build or running-app reload is unavailable.
+
 The development process follows a **human-in-the-loop approach**, where AI assists with technical work while the developer maintains control over architectural decisions, requirements, code review, and final approval.
 
 The objective is to use AI as a development tool while continuously improving independent programming and software engineering skills.

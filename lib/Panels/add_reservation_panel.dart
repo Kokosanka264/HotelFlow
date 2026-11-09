@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_app/database/guest_repository.dart';
+import 'package:hotel_app/database/pricing_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/models/bed_configuration.dart';
 import 'package:hotel_app/models/guest.dart';
@@ -16,6 +17,7 @@ class AddReservationPanel extends StatefulWidget {
     required this.selectedRooms,
     this.reservationRepository,
     this.guestRepository,
+    this.pricingRepository,
   });
 
   final DateTime checkIn;
@@ -24,6 +26,7 @@ class AddReservationPanel extends StatefulWidget {
   final List<Room> selectedRooms;
   final ReservationRepository? reservationRepository;
   final GuestRepository? guestRepository;
+  final PricingRepository? pricingRepository;
 
   @override
   State<AddReservationPanel> createState() => _AddReservationPanelState();
@@ -36,7 +39,24 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
   late final _reservationRepository =
       widget.reservationRepository ?? ReservationRepository();
   late final _guestRepository = widget.guestRepository ?? GuestRepository();
+  late final _pricingSettings =
+      (widget.pricingRepository ?? PricingRepository()).getSettings();
+  final _roomRateControllers = <int, TextEditingController>{};
+  final _extraBedRateControllers = <int, TextEditingController>{};
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final room in widget.selectedRooms) {
+      _roomRateControllers[room.id] = TextEditingController(
+        text: _plnText(_pricingSettings.roomRateForCapacity(room.capacity)),
+      );
+      _extraBedRateControllers[room.id] = TextEditingController(
+        text: _plnText(_pricingSettings.extraBedGrosze),
+      );
+    }
+  }
 
   String _dateText(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-'
@@ -68,6 +88,36 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     return null;
   }
 
+  String _plnText(int grosze) => (grosze / 100).toStringAsFixed(2);
+
+  int? _parseGrosze(String value) {
+    final amount = double.tryParse(value.trim().replaceAll(',', '.'));
+    if (amount == null || amount.isNaN || amount.isInfinite || amount < 0) {
+      return null;
+    }
+    return (amount * 100).round();
+  }
+
+  int _numberOfNights() => widget.checkOut.difference(widget.checkIn).inDays;
+
+  int? _calculateTotalGrosze() {
+    var nightlyTotal = 0;
+    for (final room in widget.selectedRooms) {
+      final roomRate = _parseGrosze(_roomRateControllers[room.id]!.text);
+      final extraBedRate = _parseGrosze(
+        _extraBedRateControllers[room.id]!.text,
+      );
+      if (roomRate == null || extraBedRate == null) {
+        return null;
+      }
+      nightlyTotal += roomRate;
+      if (_selectedExtraBeds[room.id] == true) {
+        nightlyTotal += extraBedRate;
+      }
+    }
+    return nightlyTotal * _numberOfNights();
+  }
+
   Future<void> _submitReservation() async {
     if (_isSubmitting) {
       return;
@@ -93,6 +143,13 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
       for (final room in widget.selectedRooms)
         room: _selectedExtraBeds[room.id] ?? false,
     };
+    final totalGrosze = _calculateTotalGrosze();
+    if (totalGrosze == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wprowadź poprawne ceny dla pokoi.')),
+      );
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -115,6 +172,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
       }
       final guestId = confirmation == true ? matchingGuest?.id : null;
 
+      _reservationRepository.setNextReservationTotalGrosze(totalGrosze);
       _reservationRepository.addReservation(
         reservedRooms: reservedRooms,
         extraBeds: extraBeds,
@@ -161,7 +219,8 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
             const SizedBox(height: 12),
             Text('${guest.name} ${guest.surname}'),
             if (guest.email != null) Text('Email: ${guest.email}'),
-            if (guest.phoneNumber != null) Text('Telefon: ${guest.phoneNumber}'),
+            if (guest.phoneNumber != null)
+              Text('Telefon: ${guest.phoneNumber}'),
           ],
         ),
         actions: [
@@ -193,6 +252,12 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    for (final controller in _roomRateControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _extraBedRateControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -309,6 +374,58 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                                   _selectedExtraBeds[room.id] = extraBed;
                                 });
                               },
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Ceny rezerwacji',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 8),
+                            for (final room in widget.selectedRooms) ...[
+                              Text('Pokój ${room.roomNumber}'),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _roomRateControllers[room.id],
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Cena pokoju / noc',
+                                        suffixText: 'PLN',
+                                      ),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: TextField(
+                                      controller:
+                                          _extraBedRateControllers[room.id],
+                                      enabled: room.extraBed,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Dodatkowe łóżko / noc',
+                                        suffixText: 'PLN',
+                                      ),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                'Suma: ${_plnText(_calculateTotalGrosze() ?? 0)} PLN',
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
                             ),
                           ],
                         ),

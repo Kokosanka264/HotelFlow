@@ -1,6 +1,6 @@
 # HotelFlow — Engineering Decision Log
 
-**Snapshot:** 7 November 2026 · `main` `846796ed`. A lightweight decision log, not a claim of formal ADR approval. Each entry states the choice, rationale, trade-off, implementation status and revisiting trigger.
+**Snapshot:** 9 November 2026. A lightweight decision log, not a claim of formal ADR approval. Each entry states the choice, rationale, trade-off, implementation status and revisiting trigger.
 
 ## Development chronology
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | **4 Nov 2026** | Flutter project and GitHub repository established; modular panels, main-frame/sidebar navigation and branding. Confirmed by dated GitHub commits. |
 | **5–6 Nov 2026** | Iterative work on Room/Reservation models, SQLite data access, hotel-room inventory, reservation calendar, pagination, reusable date input, test records and SQL availability. The conversation and current repository substantiate the features; exact per-file commit dates are not recorded. |
-| **7 Nov 2026** | Current `main` contains the implementation, including commits for date selection corrections and home-page changes (`e70817f`, `846796e`). Documentation updated to match current source. |
+| **7–9 Nov 2026** | Calendar interaction, pricing, startup splash, platform branding, and Settings navigation added; documentation updated to match current source. |
 
 ## DEC-001 — Flutter and Dart for a desktop-first reception tool
 
@@ -80,28 +80,28 @@
 - **Choice:** Main Reservations view shows active/upcoming bookings; historic bookings should be available in a less prominent, separate area, possibly Settings.
 - **Why:** Client wants the primary screen uncluttered.
 - **Trade-off:** Archival, data retention, accounting obligations and deletion all require agreement.
-- **Status:** UI/product decision, **not implemented**. Tentative ~7-day post-check-out retention requires confirmation.
+- **Status:** Settings entry is present with a placeholder; history data workflow and retention policy are **not implemented**.
 
 ## DEC-011 — Model bed layouts explicitly
 
 - **Choice:** Define `BedConfigurations` enum (`single`, `double`, `doubleCombined`, `extraBed`, `four`, `fourCombined`).
 - **Why:** A per-room choice is more expressive and safer than free-form text.
 - **Trade-off:** Need to define valid options by room type and persist them for each booked room; enum labels may evolve.
-- **Status:** Enum exists; no application/persistence integration.
+- **Status:** Implemented for room selection and persisted through `reservation_rooms`.
 
 ## DEC-012 — Design for multiple rooms in one customer booking
 
 - **Choice:** Future workflow: enter dates/guests → search available rooms → select multiple rooms → validate total capacity and per-room guest allocation → enter contact details and bed setups → save atomically.
 - **Why:** A customer may need several rooms under one reservation.
-- **Trade-off:** Current `reservations.room_id` links one row to one room. Requires deliberate schema redesign, likely `bookings` + `booking_rooms`, and transactions.
-- **Status:** Requirements/architecture proposal only; no working multi-room booking.
+- **Trade-off:** Room assignments are normalized in `reservation_rooms`, but overlap validation and transactional hardening still need work.
+- **Status:** Implemented in the current booking flow; schema and transactional hardening remain follow-up work.
 
 ## DEC-013 — Seed development data to test pagination and conflicts
 
-- **Choice:** Add `seedRooms()` and 21 tagged reservations with deterministic identifiers, capacity rules and a conflict check.
+- **Choice:** Add idempotent `seedRooms()` for development room data; keep reservation seeding available only as an explicit development helper.
 - **Why:** Enables realistic UI tests, especially the second page with one item.
-- **Trade-off:** Seeded reservations are intentionally fake, but **are currently added at every app startup**; marker idempotency makes dated seeds stale over time. Some may be skipped if existing data overlaps.
-- **Status:** Implemented for development; must be disabled before production.
+- **Trade-off:** Seeded rooms are development data and startup seeding must be guarded before production. Reservation seed helpers can create stale sample data if called indiscriminately.
+- **Status:** Room seeding is called at startup; reservation seeding is not called by the current startup path.
 
 ## DEC-014 — Keep sensitive guest data out of GitHub
 
@@ -129,7 +129,7 @@
 - **Choice:** Instead of assigning one reservation to only one room, we can assign one reservation to multiple rooms.
 - **Why:** This makes making reservations more easy and practical.
 - **Trade-off:** Restructre most of the apps functuality.
-- **Status:** Finished development
+- **Status:** Implemented in the current multi-room reservation flow; further integrity hardening remains.
 
 ## DEC-018 — Adding client database 
 
@@ -137,6 +137,27 @@
 - **Why:** This gives user more control over application and enables him/her to search directly for particular guest.
 - **Trade-off:** Restructre some of the apps functuality.
 - **Status:** Ongoing development practise.
+
+## DEC-019 — Capacity-based nightly pricing with historical totals
+
+- **Choice:** Store default capacity-2, capacity-4, and extra-bed rates in a singleton settings row; allow per-room nightly overrides during booking and store the final total in integer grosze.
+- **Why:** Reception can change prices without code changes while completed reservations retain their historical amount.
+- **Trade-off:** Seasonal rules, discounts, taxes, and a detailed per-room price snapshot are not implemented.
+- **Status:** Implemented; pricing UI is in Settings under Cennik.
+
+## DEC-020 — Flutter-controlled startup splash
+
+- **Choice:** Start Flutter immediately, show a HotelFlow splash while SQLite initializes, and enforce a five-second minimum display time.
+- **Why:** Provides branded feedback during startup and keeps initialization out of `main()` before the first frame.
+- **Trade-off:** Every startup intentionally waits at least five seconds; native platform splash branding is maintained separately.
+- **Status:** Implemented.
+
+## DEC-021 — Settings overlay with internal section navigation
+
+- **Choice:** Keep Settings as a near-full-screen overlay and use a left navigation column for Cennik and the reservation-history placeholder.
+- **Why:** Reuses the existing sidebar/main-panel interaction pattern without adding a separate route.
+- **Trade-off:** Reservation history still needs its own repository query and UI workflow.
+- **Status:** Cennik implemented; history placeholder only.
 
 ## Decisions still open
 

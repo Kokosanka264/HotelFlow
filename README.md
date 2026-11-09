@@ -2,7 +2,7 @@
 
 **A local-first hotel reservation and room-availability desktop application** built with **Flutter, Dart and SQLite**.
 
-> **Status:** early development / functional prototype (documentation snapshot: **7 November 2026**, `main` commit `846796ed`). This is **not production-ready**. The hotel-facing UI is primarily in Polish. The name shown in the app is HotelFlow; the Flutter package name is currently `hotel_app`.
+> **Status:** early development / functional prototype (documentation snapshot: **9 November 2026**). This is **not production-ready**. The hotel-facing UI is primarily in Polish. The app is branded HotelFlow; the Flutter package name is currently `hotel_app`.
 
 HotelFlow is being developed around the workflow of a small hotel with **24 fixed rooms**. It aims to make everyday reception tasks straightforward: inspect room details, check whether rooms are free for specific dates, browse current and upcoming reservations, view bookings by day, and eventually complete reservations spanning multiple rooms.
 
@@ -10,17 +10,18 @@ HotelFlow is being developed around the workflow of a small hotel with **24 fixe
 
 | Area | Current implementation | Status |
 | --- | --- | --- |
-| Desktop app shell | Flutter Material app with a persistent sidebar and four pages | Implemented |
+| Desktop app shell | Flutter Material app with a persistent sidebar, four main pages, a settings overlay, and a five-second startup splash | Implemented |
 | Rooms | Database repository, list, room-detail dialog, seed of 24 rooms | Implemented; needs validation tests |
 | SQLite | Local `sqlite3` database, schema initialization, foreign-key pragma, basic indexes | Implemented; requires hardening |
-| Test data | Up to 21 distinct, capacity-aware sample bookings, with collision check | Development-only; currently enabled at startup |
-| Room search | Check-in/check-out inputs, guest count, validation dialog, `NOT EXISTS` SQL query | Prototype; results and search button are not fully connected |
+| Test data | Seeded rooms; no reservation seeding is called from the current startup path | Development-only room seed |
+| Room search | Check-in/check-out inputs, guest count, validation dialog, and `NOT EXISTS` SQL query | Implemented; availability results and multi-room selection are wired |
 | Date input | Reusable editable text field plus calendar picker, formatting and validity callback | Implemented; edge cases remain |
 | Reservations | Query current/upcoming reservations, 20-per-page `LIMIT/OFFSET` list, detail dialog | Prototype; last-page control and search missing |
-| Calendar | Select day and read reservations for that day | Prototype; initial load and layout need refinement |
+| Pricing | Capacity-based nightly defaults, editable Settings rates, per-booking room overrides, historical totals | Implemented; seasonal pricing and discounts not included |
+| Calendar | Date selection, arrival/current/departure badges, detail preview, and deletion | Implemented; broader history workflow remains separate |
 | Bed configurations | `BedConfigurations` enum | Defined, not persisted or wired to bookings |
-| Multi-room booking | Selecting multiple rooms and completing one combined booking | Planned |
-| Hidden reservation history | Historical bookings in a separate, low-visibility area | Planned; **not** part of main Reservations tab |
+| Multi-room booking | Selecting multiple rooms and completing one combined booking with per-room configuration | Implemented; schema and pricing details still need further hardening |
+| Hidden reservation history | Settings button and placeholder section for future historical reservations | UI placeholder; history data workflow not implemented |
 
 **Important distinction:** a feature can be present in source code without having complete end-to-end tests or a finished reception workflow. Check the open issues before using HotelFlow with real guest data.
 
@@ -29,9 +30,11 @@ HotelFlow is being developed around the workflow of a small hotel with **24 fixe
 - **24 rooms:** numbers `1` through `24`.
 - **22 standard rooms:** default `capacity = 2`, `extra_bed = true`.
 - **Two quadruple rooms:** rooms **12 and 24**, `capacity = 4`, `extra_bed = false`.
-- The seed uses the **base capacity** (2 or 4). A third person in a standard room requires an explicit extra-bed decision in the future booking workflow; this is **not yet implemented**.
+- The seed uses the **base capacity** (2 or 4). Extra-bed selection is available for rooms that support it during booking.
 - Bookings use a **half-open interval** `[check-in, check-out)`: a new booking may start on another booking's check-out date.
 - Room availability must be checked for the **entire requested stay**, not just on check-in day.
+- Default nightly rates are 300 PLN for capacity-2 rooms, 500 PLN for capacity-4 rooms, and 60 PLN for an extra bed; rates are editable in Settings.
+- Reservation totals are stored as integer grosze snapshots and are not changed by later pricing edits.
 - Multiple-room selection and per-room bed layouts are business requirements, not yet supported by the current reservation schema.
 
 ## Tech stack
@@ -58,7 +61,7 @@ flutter pub get
 flutter run -d windows
 ```
 
-The application currently initializes the database on startup and automatically invokes both `seedRooms()` **and `seedReservations()`**. **Do not launch the existing build against a real hotel database:** test data is still automatically inserted. Remove or guard the development seeding before deployment.
+The application shows a Flutter startup splash for at least five seconds, initializes the database, creates tables, and seeds the fixed rooms. The current startup path does not invoke reservation test seeding. **Do not launch the existing build against a real hotel database without reviewing room seeding and migration behavior.**
 
 For static checks:
 
@@ -92,14 +95,19 @@ lib/
     calendar_panel.dart
     in_this_day_reservations.dart
     add_reservation_panel.dart      # placeholder
+    settings.dart                   # settings overlay navigation
+    price_changing_panel.dart       # editable pricing settings
+    hotel_flow_splash_screen.dart   # Flutter startup screen
   database/
     database_helper.dart            # SQLite connection, schema, seed data
     room_repository.dart
     reservation_repository.dart
+    pricing_repository.dart
   models/
     room.dart
     reservation.dart
     bed_configuration.dart
+    pricing_settings.dart
     hotel.dart                       # placeholder
   widgets/
     date_input_field.dart
@@ -111,18 +119,22 @@ docs/
   architecture.md
   database.md
   decisions.md
-  github-issues.md
+  tasks.md
+  issuses_to_solve.md
+  ai_development.md
 ```
 
 Names in this tree deliberately match the present source files, including `avaliable` (a future rename to `available` would improve consistency).
 
 ## How the app works today
 
-1. `main()` initializes SQLite, creates tables and indexes, adds fixed rooms, inserts tagged development reservations, then starts Flutter.
-2. `MainFrame` holds the selected sidebar page; `MainPanel` maps it to Home, Rooms, Reservations or Calendar.
-3. The Home form collects dates and guests; `RoomRepository.getAvaliableRooms()` uses SQL to exclude rooms with overlapping reservations. **The displayed availability widget currently performs its own query, and its selection callback is empty.**
-4. The Reservations page uses `ReservationRepository.getReservationsPage(page, pageSize)` and `ListView.builder`; clicking a row opens a details dialog.
-5. The Calendar page requests reservations active on the selected date via `getReservationsForDate()`.
+1. `main()` starts Flutter immediately; `HotelFlow` displays the splash while database initialization, table creation, room seeding, and a five-second minimum delay complete.
+2. `MainFrame` owns main navigation and opens Settings as a near-full-screen overlay with a close button; `MainPanel` maps the other sidebar selections to Home, Rooms, Reservations, Calendar, and Guests.
+3. The Home form validates dates and guest count, queries available rooms, supports selecting multiple rooms, and opens the reservation form.
+4. The reservation form loads pricing defaults, allows per-room nightly overrides, calculates the stay total, and saves a historical total in grosze.
+5. The Reservations page uses `ReservationRepository.getReservationsPage(page, pageSize)` and `ListView.builder`; clicking a row opens a detail dialog with deletion.
+6. The Calendar page loads today's reservations on open, filters by selected date, marks arrivals/current/departures, and supports detail/deletion dialogs.
+7. Settings opens with the history placeholder selected; Cennik displays the editable capacity-2, capacity-4, and extra-bed rates.
 
 ## Development timeline
 
@@ -149,7 +161,7 @@ The current `main` branch contains the code described above, but some changes we
 - [Architecture and data flow](docs/architecture.md)
 - [Database schema and booking constraints](docs/database.md)
 - [Engineering decisions and trade-offs](docs/decisions.md)
-- [Suggested GitHub issues and comment templates](docs/github-issues.md)
+- [Current issues to solve](docs/issuses_to_solve.md)
 
 ## Responsible development
 
@@ -167,4 +179,4 @@ Architectural decisions, code review, and final
 approval remain under developer control.
 
 For more details, see
-[AI-Assisted Development][docs/ai-development.md].
+[AI-Assisted Development](docs/ai_development.md).

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_app/widgets/date_input_field.dart';
 import 'package:hotel_app/database/room_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
+import 'package:hotel_app/database/pricing_repository.dart';
 import 'package:hotel_app/Panels/add_reservation_panel.dart';
 
 class HomePagePanel extends StatefulWidget {
@@ -11,10 +12,12 @@ class HomePagePanel extends StatefulWidget {
     super.key,
     RoomRepository? roomRepository,
     this.reservationRepository,
+    this.pricingRepository,
   }) : roomRepository = roomRepository ?? RoomRepository();
 
   final RoomRepository roomRepository;
   final ReservationRepository? reservationRepository;
+  final PricingRepository? pricingRepository;
   @override
   State<HomePagePanel> createState() => _HomePagePanelState();
 }
@@ -57,6 +60,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
           numberOfGuests: numberOfGuests,
           selectedRooms: selectedRooms,
           reservationRepository: widget.reservationRepository,
+          pricingRepository: widget.pricingRepository,
         );
       },
     );
