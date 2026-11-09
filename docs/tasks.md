@@ -69,6 +69,9 @@
 | Prevent overlapping bookings during saving | ⏳ Not Started |
 | Implement reservation editing and cancellation | ⏳ Not Started |
 | Implement checking current bed configuration is enough for specific number of people (extra bed case) | ⏳ Not Started |
+| Change add reservation panel so it matches new bed configurating system | ⏳ Not Started |
+| Change reservation repository, add hasExtraBed column | ⏳ Not Started |
+| Add mandatory condition during picking bed configuration (extra bed case) | ⏳ Not Started |
 
 ## 5. Calendar
 
@@ -95,7 +98,10 @@
 |---|---|
 | Implement 'Add Client' | ⏳ Not Started |
 | Implement 'Remove Client' | ⏳ Not Started |
+| Implement 'Manage Client' | ⏳ Not Started |
 | Make a ListView of all clients in database | ⏳ Not Started |
+| Correct addGuest conditions in addReservation method | ⏳ Not Started |
+| Checks if there are two exactly guests existing and if yes combines them into one | ⏳ Not Started |
 
 ## 8. Pricing
 

@@ -2,6 +2,7 @@ import 'package:hotel_app/models/bed_configuration.dart';
 
 import 'database_helper.dart';
 
+import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/database/reservation_rooms_repository.dart';
 import 'package:hotel_app/models/reservation.dart';
 import 'package:hotel_app/models/room.dart';
@@ -13,6 +14,7 @@ class ReservationRepository {
     required String guestSurname,
     String? email,
     String? phoneNumber,
+    int? guestId,
     required int guestCount,
     required DateTime checkInDate,
     required DateTime checkOutDate,
@@ -33,18 +35,20 @@ class ReservationRepository {
     database.execute('BEGIN TRANSACTION');
     var committed = false;
     try {
+      final guestRepository = GuestRepository();
+      final resolvedGuestId =
+          guestId ??
+          guestRepository.addGuest(guestName, guestSurname, email, phoneNumber);
+
       database.execute(
         '''
         INSERT INTO reservations (
-          guest_name, guest_surname, email, phone_number, guest_count,
+          guest_id, guest_count,
           check_in_date, check_out_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?)
         ''',
         [
-          guestName,
-          guestSurname,
-          email,
-          phoneNumber,
+          resolvedGuestId,
           guestCount,
           checkInDate.toIso8601String().split('T')[0],
           checkOutDate.toIso8601String().split('T')[0],
@@ -84,7 +88,10 @@ class ReservationRepository {
     final String formattedDate = date.toIso8601String().split('T')[0];
     final rows = DatabaseHelper.database.select(
       '''
-      SELECT * FROM reservations
+      SELECT reservations.*, guests.guest_name, guests.guest_surname,
+             guests.email, guests.phone_number
+      FROM reservations
+      JOIN guests ON guests.id = reservations.guest_id
       WHERE DATE(check_in_date) <= ? AND DATE(check_out_date) > ?
       ''',
       [formattedDate, formattedDate],
@@ -115,16 +122,47 @@ class ReservationRepository {
     return result.first['total'] as int;
   }
 
-  List<Reservation> getReservationsPage(int page, int pageSize) {
+  List<Reservation> getReservationsPage(
+    int page,
+    int pageSize, [
+    String query = '',
+  ]) {
     final offset = page * pageSize;
+    final search = '%${query.trim()}%';
     final rows = DatabaseHelper.database.select(
       '''
-      SELECT * FROM reservations
-      WHERE Date(check_out_date) >= Date('now')
-      ORDER BY check_in_date ASC, id ASC
+      SELECT reservations.*, guests.guest_name, guests.guest_surname,
+             guests.email, guests.phone_number
+      FROM reservations
+      JOIN guests ON guests.id = reservations.guest_id
+      WHERE Date(reservations.check_out_date) >= Date('now')
+        AND (
+          ? = ''
+          OR guests.guest_name LIKE ?
+          OR guests.guest_surname LIKE ?
+          OR guests.email LIKE ?
+          OR guests.phone_number LIKE ?
+          OR CAST(reservations.id AS TEXT) LIKE ?
+          OR CAST(reservations.guest_count AS TEXT) LIKE ?
+          OR reservations.check_in_date LIKE ?
+          OR reservations.check_out_date LIKE ?
+        )
+      ORDER BY reservations.check_in_date ASC, reservations.id ASC
       LIMIT ? OFFSET ?
       ''',
-      [pageSize, offset],
+      [
+        query.trim(),
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        pageSize,
+        offset,
+      ],
     );
     return rows.map((row) {
       final reservationId = row['id'] as int;

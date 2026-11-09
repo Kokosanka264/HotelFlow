@@ -26,6 +26,7 @@ class _FakeReservationRepository extends ReservationRepository {
     required String guestSurname,
     String? email,
     String? phoneNumber,
+    int? guestId,
     required int guestCount,
     required DateTime checkInDate,
     required DateTime checkOutDate,

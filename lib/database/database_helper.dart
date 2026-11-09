@@ -38,20 +38,36 @@ class DatabaseHelper {
         CHECK(extra_bed IN (0, 1))
       )
     ''');
+
     database.execute('''
-      CREATE TABLE IF NOT EXISTS reservations (
+      CREATE TABLE IF NOT EXISTS guests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guest_name TEXT NOT NULL,
         guest_surname TEXT NOT NULL,
         email TEXT,
-        phone_number TEXT,
-        guest_count INTEGER NOT NULL
-        CHECK(guest_count > 0),
-        check_in_date TEXT NOT NULL,
-        check_out_date TEXT NOT NULL,
-        CHECK(CHECK_IN_DATE < CHECK_OUT_DATE)
+        phone_number TEXT
+
+        
+       
       )
     ''');
+
+    database.execute('''
+      CREATE TABLE IF NOT EXISTS reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guest_id INTEGER NOT NULL,
+        guest_count INTEGER NOT NULL,
+        check_in_date TEXT NOT NULL,
+        check_out_date TEXT NOT NULL,
+        CHECK(guest_count > 0),
+        CHECK(CHECK_IN_DATE < CHECK_OUT_DATE),
+
+        FOREIGN KEY (guest_id)
+    REFERENCES guests(id)
+    ON DELETE RESTRICT
+      )
+    ''');
+
     database.execute('''
     CREATE TABLE IF NOT EXISTS reservation_rooms (
     reservation_id INTEGER NOT NULL,
@@ -69,15 +85,26 @@ class DatabaseHelper {
         ON DELETE RESTRICT
       )
      ''');
-     database.execute('''
+
+    database.execute('''
   CREATE INDEX IF NOT EXISTS idx_reservations_dates
   ON reservations(check_in_date, check_out_date);
 ''');
 
-database.execute('''
+    database.execute('''
   CREATE INDEX IF NOT EXISTS idx_reservation_rooms_room
   ON reservation_rooms(room_id, reservation_id);
 ''');
+
+    database.execute('''
+ CREATE INDEX IF NOT EXISTS idx_guests_email
+ON guests(email);
+''');
+    database.execute('''
+  CREATE INDEX IF NOT EXISTS idx_guests_phone
+ON guests(phone_number);
+''');
+
     final tables = database.select(
       "SELECT name FROM sqlite_master WHERE type='table'",
     );
@@ -100,13 +127,4 @@ database.execute('''
       );
     }
   }
-
-  static void deleteSeedReservations() {
-    database.execute(
-      'DELETE FROM reservations WHERE email LIKE ?',
-      ['hotelflow-seed-%@example.invalid'],
-    );
-  }
-
-  
 }
