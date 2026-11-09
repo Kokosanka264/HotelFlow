@@ -84,7 +84,19 @@ class _ListViewPanelReservationsState extends State<ListViewPanelReservations> {
             itemBuilder: (context, index) {
               final reservation = reservations[index];
               return ListTile(
-                title: Text(reservation.toString()),
+                title: Text('Rezerwacja #${reservation.id}'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${reservation.guestName} ${reservation.guestSurname}'),
+                    Text(
+                      reservation.email?.trim().isNotEmpty == true
+                          ? reservation.email!
+                          : 'Brak adresu e-mail',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
                 onTap: () => widget.onReservationPressed(reservation),
               );
             },
