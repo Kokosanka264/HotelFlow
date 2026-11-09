@@ -28,11 +28,13 @@ Widget _buildForm({
 
 class _FakeReservationRepository extends ReservationRepository {
   int? guestId;
+  Map<Room, bool> extraBeds = const {};
   int addReservationCalls = 0;
 
   @override
   void addReservation({
     required Map<Room, BedConfigurations> reservedRooms,
+    Map<Room, bool> extraBeds = const {},
     required String guestName,
     required String guestSurname,
     String? email,
@@ -43,16 +45,17 @@ class _FakeReservationRepository extends ReservationRepository {
     required DateTime checkOutDate,
   }) {
     this.guestId = guestId;
+    this.extraBeds = extraBeds;
     addReservationCalls++;
   }
 }
 
-Room _room({required int id, required int capacity}) {
+Room _room({required int id, required int capacity, bool extraBed = false}) {
   return Room(
     id: id,
     roomNumber: id.toString(),
     capacity: capacity,
-    extraBed: false,
+    extraBed: extraBed,
   );
 }
 
@@ -122,18 +125,18 @@ void main() {
       await tester.ensureVisible(dropdowns.at(0));
       await tester.tap(dropdowns.at(0));
       await tester.pumpAndSettle();
-      expect(find.text('Single bed'), findsOneWidget);
-      expect(find.text('Twin beds'), findsOneWidget);
-      expect(find.text('Four single beds'), findsNothing);
-      await tester.tap(find.text('Twin beds').last);
+      expect(find.text('Pojedyńcze łóżko'), findsOneWidget);
+      expect(find.text('Dwa oddzielne łóżka'), findsOneWidget);
+      expect(find.text('Cztery pojedyńcze łóżka'), findsNothing);
+      await tester.tap(find.text('Dwa oddzielne łóżka').last);
       await tester.pumpAndSettle();
 
       await tester.ensureVisible(dropdowns.at(1));
       await tester.tap(dropdowns.at(1));
       await tester.pumpAndSettle();
-      expect(find.text('Four single beds'), findsOneWidget);
-      expect(find.text('Double bed and two single beds'), findsOneWidget);
-      expect(find.text('Single bed'), findsNothing);
+      expect(find.text('Cztery pojedyńcze łóżka'), findsOneWidget);
+      expect(find.text('Podwójne łóżko i dwa pojedyńcze'), findsOneWidget);
+      expect(find.text('Pojedyńcze łóżko'), findsNothing);
     },
   );
 
@@ -164,24 +167,21 @@ void main() {
           find.byType(TextFormField).at(2),
           'alex@example.com',
         );
-        final configurationDropdown =
-            find.byType(DropdownButtonFormField<BedConfigurations>);
+        final configurationDropdown = find.byType(
+          DropdownButtonFormField<BedConfigurations>,
+        );
         await tester.ensureVisible(configurationDropdown);
         await tester.tap(configurationDropdown);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Single bed').last);
+        await tester.tap(find.text('Pojedyńcze łóżko').last);
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Reserve'));
         await tester.tap(find.text('Reserve'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Is this the correct guest?'), findsOneWidget);
+        expect(find.text('Czy to ten sam gość?'), findsOneWidget);
         await tester.tap(
-          find.text(
-            useExistingGuest
-                ? 'Yes, use this guest'
-                : 'No, create a new guest',
-          ),
+          find.text(useExistingGuest ? 'Tak' : 'Nie, dodaj nowego gościa'),
         );
         await tester.pumpAndSettle();
 
@@ -192,5 +192,46 @@ void main() {
         );
       },
     );
+  }
+
+  for (final useExtraBed in [true, false]) {
+    testWidgets('passes extra bed selection $useExtraBed to the reservation', (
+      tester,
+    ) async {
+      final room = _room(id: 1, capacity: 2, extraBed: true);
+      final reservationRepository = _FakeReservationRepository();
+      await tester.pumpWidget(
+        _buildForm(
+          rooms: [room],
+          reservationRepository: reservationRepository,
+          guestRepository: guestRepository,
+        ),
+      );
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'Alex');
+      await tester.enterText(find.byType(TextFormField).at(1), 'Guest');
+      final configurationDropdown = find.byType(
+        DropdownButtonFormField<BedConfigurations>,
+      );
+      await tester.ensureVisible(configurationDropdown);
+      await tester.tap(configurationDropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pojedyńcze łóżko').last);
+      await tester.pumpAndSettle();
+
+      final extraBedSwitch = find.byType(Switch);
+      await tester.ensureVisible(extraBedSwitch);
+      expect(tester.widget<Switch>(extraBedSwitch).value, isFalse);
+      if (useExtraBed) {
+        await tester.tap(extraBedSwitch);
+        await tester.pumpAndSettle();
+      }
+
+      await tester.ensureVisible(find.text('Reserve'));
+      await tester.tap(find.text('Reserve'));
+      await tester.pumpAndSettle();
+
+      expect(reservationRepository.extraBeds[room], useExtraBed);
+    });
   }
 }

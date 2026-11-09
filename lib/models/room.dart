@@ -38,8 +38,7 @@ class Room {
     return [
       BedConfigurations.single,
       BedConfigurations.twin,
-      BedConfigurations.doubleBed,
-      BedConfigurations.extraBed,
+      BedConfigurations.doubleBed,          
     ];
   }
 }

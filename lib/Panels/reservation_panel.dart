@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hotel_app/Panels/list_view_panel_reservations.dart';
 import 'package:hotel_app/Panels/remove_reservation_panel.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
+import 'package:hotel_app/methods/reservation_preview.dart';
 import 'package:hotel_app/models/reservation.dart';
 
 class ReservationPanel extends StatefulWidget {
@@ -38,8 +39,8 @@ class _ReservationPanelState extends State<ReservationPanel> {
     final deleted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Reservation Details'),
-        content: Text(reservation.toString()),
+        title: Text('Szczegóły rezerwacji #${reservation.id}'),
+        content: ReservationPreview(reservation: reservation),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -50,8 +51,10 @@ class _ReservationPanelState extends State<ReservationPanel> {
               final removed = await showDialog<bool>(
                 context: dialogContext,
                 barrierDismissible: false,
-                builder: (_) =>
-                    RemoveReservationPanel(reservation: reservation),
+                builder: (_) => RemoveReservationPanel(
+                  reservation: reservation,
+                  reservationRepository: reservationRepository,
+                ),
               );
               if (removed == true && dialogContext.mounted) {
                 Navigator.of(dialogContext).pop(true);

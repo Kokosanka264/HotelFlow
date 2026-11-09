@@ -10,6 +10,7 @@ import 'package:hotel_app/models/room.dart';
 class ReservationRepository {
   void addReservation({
     required Map<Room, BedConfigurations> reservedRooms,
+    Map<Room, bool> extraBeds = const {},
     required String guestName,
     required String guestSurname,
     String? email,
@@ -24,6 +25,10 @@ class ReservationRepository {
         guestCount <= 0 ||
         !checkOutDate.isAfter(checkInDate) ||
         reservedRooms.isEmpty ||
+        extraBeds.keys.any((room) => !reservedRooms.containsKey(room)) ||
+        extraBeds.entries.any(
+          (entry) => entry.value && !entry.key.extraBed,
+        ) ||
         reservedRooms.entries.any(
           (entry) =>
               !entry.key.getPossibleBedConfigurations().contains(entry.value),
@@ -64,6 +69,7 @@ class ReservationRepository {
           reservationId,
           entry.key,
           entry.value,
+          extraBed: extraBeds[entry.key] ?? false,
         );
       }
 
@@ -102,6 +108,7 @@ class ReservationRepository {
         id: reservationId,
         reservedRooms: _getReservedRooms(reservationId),
         bedConfigurations: _getBedConfigurations(reservationId),
+        extraBeds: _getExtraBeds(reservationId),
         guestName: row['guest_name'] as String,
         guestSurname: row['guest_surname'] as String,
         email: row['email'] as String?,
@@ -170,6 +177,7 @@ class ReservationRepository {
         id: reservationId,
         reservedRooms: _getReservedRooms(reservationId),
         bedConfigurations: _getBedConfigurations(reservationId),
+        extraBeds: _getExtraBeds(reservationId),
         guestName: row['guest_name'] as String,
         guestSurname: row['guest_surname'] as String,
         email: row['email'] as String?,
@@ -178,7 +186,28 @@ class ReservationRepository {
         checkInDate: DateTime.parse(row['check_in_date'] as String),
         checkOutDate: DateTime.parse(row['check_out_date'] as String),
       );
-    }).toList();
+    })    .toList();
+  }
+
+  Map<int, bool> _getExtraBeds(int reservationId) {
+    final rows = DatabaseHelper.database.select(
+      'SELECT room_id, extraBed FROM reservation_rooms WHERE reservation_id = ?',
+      [reservationId],
+    );
+    return {
+      for (final row in rows)
+    row['room_id'] as int: _parseExtraBed(row['extraBed']),
+    };
+  }
+
+  bool _parseExtraBed(Object? value) {
+    if (value == 1 || value == '1' || value == 'true') {
+      return true;
+    }
+    if (value == 0 || value == '0' || value == 'false') {
+      return false;
+    }
+    throw FormatException('Invalid extra-bed value: $value');
   }
 
   List<Room> _getReservedRooms(int reservationId) {

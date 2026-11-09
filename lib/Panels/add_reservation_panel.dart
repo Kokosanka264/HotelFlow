@@ -32,6 +32,7 @@ class AddReservationPanel extends StatefulWidget {
 class _AddReservationPanelState extends State<AddReservationPanel> {
   final _formKey = GlobalKey<FormState>();
   final _selectedConfigurations = <int, BedConfigurations>{};
+  final _selectedExtraBeds = <int, bool>{};
   late final _reservationRepository =
       widget.reservationRepository ?? ReservationRepository();
   late final _guestRepository = widget.guestRepository ?? GuestRepository();
@@ -88,6 +89,10 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
       for (final room in widget.selectedRooms)
         room: _selectedConfigurations[room.id]!,
     };
+    final extraBeds = <Room, bool>{
+      for (final room in widget.selectedRooms)
+        room: _selectedExtraBeds[room.id] ?? false,
+    };
 
     setState(() {
       _isSubmitting = true;
@@ -112,6 +117,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
 
       _reservationRepository.addReservation(
         reservedRooms: reservedRooms,
+        extraBeds: extraBeds,
         guestName: _firstNameController.text.trim(),
         guestSurname: _lastNameController.text.trim(),
         email: email,
@@ -287,6 +293,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                             RoomConfigurationSection(
                               rooms: widget.selectedRooms,
                               selectedConfigurations: _selectedConfigurations,
+                              selectedExtraBeds: _selectedExtraBeds,
                               onConfigurationChanged: (room, configuration) {
                                 setState(() {
                                   if (configuration == null) {
@@ -295,6 +302,11 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                                     _selectedConfigurations[room.id] =
                                         configuration;
                                   }
+                                });
+                              },
+                              onExtraBedChanged: (room, extraBed) {
+                                setState(() {
+                                  _selectedExtraBeds[room.id] = extraBed;
                                 });
                               },
                             ),
