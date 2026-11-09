@@ -26,9 +26,7 @@ class ReservationRepository {
         !checkOutDate.isAfter(checkInDate) ||
         reservedRooms.isEmpty ||
         extraBeds.keys.any((room) => !reservedRooms.containsKey(room)) ||
-        extraBeds.entries.any(
-          (entry) => entry.value && !entry.key.extraBed,
-        ) ||
+        extraBeds.entries.any((entry) => entry.value && !entry.key.extraBed) ||
         reservedRooms.entries.any(
           (entry) =>
               !entry.key.getPossibleBedConfigurations().contains(entry.value),
@@ -98,7 +96,7 @@ class ReservationRepository {
              guests.email, guests.phone_number
       FROM reservations
       JOIN guests ON guests.id = reservations.guest_id
-      WHERE DATE(check_in_date) <= ? AND DATE(check_out_date) > ?
+      WHERE DATE(check_in_date) <= ? AND DATE(check_out_date) >= ?
       ''',
       [formattedDate, formattedDate],
     );
@@ -186,7 +184,7 @@ class ReservationRepository {
         checkInDate: DateTime.parse(row['check_in_date'] as String),
         checkOutDate: DateTime.parse(row['check_out_date'] as String),
       );
-    })    .toList();
+    }).toList();
   }
 
   Map<int, bool> _getExtraBeds(int reservationId) {
@@ -196,7 +194,7 @@ class ReservationRepository {
     );
     return {
       for (final row in rows)
-    row['room_id'] as int: _parseExtraBed(row['extraBed']),
+        row['room_id'] as int: _parseExtraBed(row['extraBed']),
     };
   }
 

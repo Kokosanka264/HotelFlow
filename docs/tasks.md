@@ -22,6 +22,7 @@
 | Implement sidebar navigation | ✅ Done |
 | Connect main application panels | ✅ Done |
 | Establish consistent UI styling | 🔄 In Progress |
+| Improve searching system| 🔄 In Progress |
 
 ## 2. Database
 

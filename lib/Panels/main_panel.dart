@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_app/Panels/guests_panel.dart';
+
 import 'home_page_panel.dart';
 import 'calendar_panel.dart';
 import 'reservation_panel.dart';
 import 'rooms_panel.dart';
-class MainPanel extends StatelessWidget{
+
+class MainPanel extends StatelessWidget {
   final int selectedIndex;
   const MainPanel({super.key, required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: getCurrentPage()
-    );
+    return Scaffold(body: getCurrentPage());
   }
 
   Widget getCurrentPage() {
@@ -26,12 +26,9 @@ class MainPanel extends StatelessWidget{
       case 3:
         return CalendarPanel();
       case 4:
-      return GuestsPanel();
+        return GuestsPanel();
       default:
         return Center(child: Text('Nieznana strona'));
     }
   }
 }
-  
-  
-    
