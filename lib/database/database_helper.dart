@@ -73,7 +73,7 @@ class DatabaseHelper {
     reservation_id INTEGER NOT NULL,
     room_id INTEGER NOT NULL,
     bed_configuration TEXT NOT NULL,
-
+    extraBed INTEGER NOT NULL DEFAULT 0 CHECK(extraBed IN (0, 1)),
     PRIMARY KEY (reservation_id, room_id),
 
     FOREIGN KEY (reservation_id)

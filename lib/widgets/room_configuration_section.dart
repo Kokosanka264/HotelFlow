@@ -8,21 +8,24 @@ class RoomConfigurationSection extends StatelessWidget {
     required this.rooms,
     required this.selectedConfigurations,
     required this.onConfigurationChanged,
+    required this.selectedExtraBeds,
+    required this.onExtraBedChanged,
   });
 
   final List<Room> rooms;
   final Map<int, BedConfigurations> selectedConfigurations;
   final void Function(Room room, BedConfigurations? configuration)
   onConfigurationChanged;
+  final Map<int, bool> selectedExtraBeds;
+  final void Function(Room room, bool extraBed) onExtraBedChanged;
 
   String _configurationLabel(BedConfigurations configuration) {
     return switch (configuration) {
-      BedConfigurations.single => 'Single bed',
-      BedConfigurations.twin => 'Twin beds',
-      BedConfigurations.doubleBed => 'Double bed',
-      BedConfigurations.extraBed => 'Extra bed',
-      BedConfigurations.fourSingle => 'Four single beds',
-      BedConfigurations.doubleAndTwoSingle => 'Double bed and two single beds',
+      BedConfigurations.single => 'Pojedyńcze łóżko',
+      BedConfigurations.twin => 'Dwa oddzielne łóżka',
+      BedConfigurations.doubleBed => 'Podwójne łóżko',
+      BedConfigurations.fourSingle => 'Cztery pojedyńcze łóżka',
+      BedConfigurations.doubleAndTwoSingle => 'Podwójne łóżko i dwa pojedyńcze',
     };
   }
 
@@ -38,23 +41,41 @@ class RoomConfigurationSection extends StatelessWidget {
         const SizedBox(height: 8),
         for (final room in rooms) ...[
           Text('Room ${room.roomNumber}'),
-          DropdownButtonFormField<BedConfigurations>(
-            initialValue: selectedConfigurations[room.id],
-            decoration: const InputDecoration(labelText: 'Bed configuration'),
-            items: room
-                .getPossibleBedConfigurations()
-                .map(
-                  (configuration) => DropdownMenuItem(
-                    value: configuration,
-                    child: Text(_configurationLabel(configuration)),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<BedConfigurations>(
+                  isExpanded: true,
+                  initialValue: selectedConfigurations[room.id],
+                  decoration: const InputDecoration(
+                    labelText: 'Bed configuration',
                   ),
-                )
-                .toList(),
-            onChanged: (configuration) {
-              onConfigurationChanged(room, configuration);
-            },
-            validator: (configuration) =>
-                configuration == null ? 'Select a configuration.' : null,
+                  items: room
+                      .getPossibleBedConfigurations()
+                      .map(
+                        (configuration) => DropdownMenuItem(
+                          value: configuration,
+                          child: Text(_configurationLabel(configuration)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (configuration) {
+                    onConfigurationChanged(room, configuration);
+                  },
+                  validator: (configuration) => configuration == null
+                      ? 'Select a configuration.'
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Dodatkowe łóżko'),
+              Switch(
+                value: selectedExtraBeds[room.id] ?? false,
+                onChanged: room.extraBed
+                    ? (value) => onExtraBedChanged(room, value)
+                    : null,
+              ),
+            ],
           ),
           const SizedBox(height: 16),
         ],

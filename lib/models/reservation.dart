@@ -5,6 +5,7 @@ class Reservation {
   final int id;
   List<Room> reservedRooms;
   final Map<int, BedConfigurations> bedConfigurations;
+  final Map<int, bool> extraBeds;
   String guestName;
   String guestSurname;
   String? email;
@@ -17,6 +18,7 @@ class Reservation {
     required this.id,
     required this.reservedRooms,
     required this.bedConfigurations,
+    required this.extraBeds,
     required this.guestName,
     required this.guestSurname,
     this.email,

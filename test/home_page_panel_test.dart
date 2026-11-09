@@ -22,6 +22,7 @@ class _FakeReservationRepository extends ReservationRepository {
   @override
   void addReservation({
     required Map<Room, BedConfigurations> reservedRooms,
+    Map<Room, bool> extraBeds = const {},
     required String guestName,
     required String guestSurname,
     String? email,
@@ -122,7 +123,7 @@ void main() {
     await tester.ensureVisible(bedConfigurationDropdown);
     await tester.tap(bedConfigurationDropdown);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Single bed').last);
+    await tester.tap(find.text('Pojedyńcze łóżko').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reserve'));
     await tester.pumpAndSettle();
