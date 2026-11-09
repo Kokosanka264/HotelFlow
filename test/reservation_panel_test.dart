@@ -9,13 +9,19 @@ class _FakeReservationRepository extends ReservationRepository {
 
   final int reservationCount;
   final requestedPages = <int>[];
+  final requestedQueries = <String>[];
 
   @override
   int countReservations() => reservationCount;
 
   @override
-  List<Reservation> getReservationsPage(int page, int pageSize) {
+  List<Reservation> getReservationsPage(
+    int page,
+    int pageSize, [
+    String query = '',
+  ]) {
     requestedPages.add(page);
+    requestedQueries.add(query);
     return [];
   }
 }
@@ -49,5 +55,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.requestedPages, [0, 1]);
+  });
+
+  testWidgets('search text is passed to the reservation repository', (
+    tester,
+  ) async {
+    final repository = _FakeReservationRepository(0);
+    await tester.pumpWidget(
+      MaterialApp(home: ReservationPanel(reservationRepository: repository)),
+    );
+
+    await tester.enterText(find.byType(TextField), 'Alex');
+    await tester.pumpAndSettle();
+
+    expect(repository.requestedQueries.last, 'Alex');
   });
 }

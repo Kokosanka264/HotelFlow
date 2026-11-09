@@ -6,7 +6,6 @@ Future<void> main() async {
   await DatabaseHelper.initialize();
   DatabaseHelper.createTables();
   DatabaseHelper.seedRooms();
-  DatabaseHelper.deleteSeedReservations();
   runApp(const HotelFlow());
 }
 class HotelFlow extends StatelessWidget {

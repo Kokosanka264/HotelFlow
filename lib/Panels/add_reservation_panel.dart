@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/models/bed_configuration.dart';
+import 'package:hotel_app/models/guest.dart';
 import 'package:hotel_app/models/room.dart';
 import 'package:hotel_app/widgets/room_configuration_section.dart';
 import 'package:sqlite3/sqlite3.dart' show SqliteException;
@@ -13,6 +15,7 @@ class AddReservationPanel extends StatefulWidget {
     required this.numberOfGuests,
     required this.selectedRooms,
     this.reservationRepository,
+    this.guestRepository,
   });
 
   final DateTime checkIn;
@@ -20,6 +23,7 @@ class AddReservationPanel extends StatefulWidget {
   final int numberOfGuests;
   final List<Room> selectedRooms;
   final ReservationRepository? reservationRepository;
+  final GuestRepository? guestRepository;
 
   @override
   State<AddReservationPanel> createState() => _AddReservationPanelState();
@@ -30,6 +34,8 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
   final _selectedConfigurations = <int, BedConfigurations>{};
   late final _reservationRepository =
       widget.reservationRepository ?? ReservationRepository();
+  late final _guestRepository = widget.guestRepository ?? GuestRepository();
+  bool _isSubmitting = false;
 
   String _dateText(DateTime date) {
     return '${date.year.toString().padLeft(4, '0')}-'
@@ -61,7 +67,10 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     return null;
   }
 
-  void _submitReservation() {
+  Future<void> _submitReservation() async {
+    if (_isSubmitting) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -80,17 +89,34 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
         room: _selectedConfigurations[room.id]!,
     };
 
+    setState(() {
+      _isSubmitting = true;
+    });
     try {
+      final email = _emailController.text.trim().isEmpty
+          ? null
+          : _emailController.text.trim();
+      final phoneNumber = _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim();
+      final matchingGuest = email == null && phoneNumber == null
+          ? null
+          : _guestRepository.findGuest(email: email, phoneNumber: phoneNumber);
+      final confirmation = matchingGuest == null
+          ? null
+          : await _confirmGuest(matchingGuest);
+      if (!mounted || (matchingGuest != null && confirmation == null)) {
+        return;
+      }
+      final guestId = confirmation == true ? matchingGuest?.id : null;
+
       _reservationRepository.addReservation(
         reservedRooms: reservedRooms,
         guestName: _firstNameController.text.trim(),
         guestSurname: _lastNameController.text.trim(),
-        email: _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-        phoneNumber: _phoneController.text.trim().isEmpty
-            ? null
-            : _phoneController.text.trim(),
+        email: email,
+        phoneNumber: phoneNumber,
+        guestId: guestId,
         guestCount: widget.numberOfGuests,
         checkInDate: widget.checkIn,
         checkOutDate: widget.checkOut,
@@ -106,7 +132,48 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not save reservation: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
+  }
+
+  Future<bool?> _confirmGuest(Guest guest) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Znaleziono istniejącego gościa w bazie'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Czy to ten sam gość?'),
+            const SizedBox(height: 12),
+            Text('${guest.name} ${guest.surname}'),
+            if (guest.email != null) Text('Email: ${guest.email}'),
+            if (guest.phoneNumber != null) Text('Telefon: ${guest.phoneNumber}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Nie, dodaj nowego gościa'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Tak'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == null) {
+      return null;
+    }
+    return confirmed;
   }
 
   final _firstNameController = TextEditingController();
@@ -246,7 +313,9 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
-                            onPressed: _submitReservation,
+                            onPressed: _isSubmitting
+                                ? null
+                                : _submitReservation,
                             child: const Text('Reserve'),
                           ),
                         ],

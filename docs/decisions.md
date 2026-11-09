@@ -129,6 +129,13 @@
 - **Choice:** Instead of assigning one reservation to only one room, we can assign one reservation to multiple rooms.
 - **Why:** This makes making reservations more easy and practical.
 - **Trade-off:** Restructre most of the apps functuality.
+- **Status:** Finished development
+
+## DEC-018 — Adding client database 
+
+- **Choice:** Making user be able to see guests detailes and theirs reservations.
+- **Why:** This gives user more control over application and enables him/her to search directly for particular guest.
+- **Trade-off:** Restructre some of the apps functuality.
 - **Status:** Ongoing development practise.
 
 ## Decisions still open

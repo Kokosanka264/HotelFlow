@@ -16,6 +16,7 @@ class _SidebarPanelState extends State<SidebarPanel> {
     'Pokoje',
     'Rezerwacje',
     'Kalendarz',
+    'Baza Gości',
   ];
 
   @override
@@ -25,6 +26,7 @@ class _SidebarPanelState extends State<SidebarPanel> {
     Icons.bed_rounded,
     Icons.book_online_rounded,
     Icons.calendar_month_rounded,
+    Icons.person_rounded,
   ];
 
   return Container(
