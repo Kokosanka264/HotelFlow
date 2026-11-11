@@ -130,6 +130,59 @@ class ReservationRepository {
     }).toList();
   }
 
+  List<Reservation> getPastReservations([String query = '']) {
+    final search = '%${query.trim()}%';
+    final rows = DatabaseHelper.database.select(
+      '''
+      SELECT reservations.*, guests.guest_name, guests.guest_surname,
+             guests.email, guests.phone_number
+      FROM reservations
+      JOIN guests ON guests.id = reservations.guest_id
+      WHERE DATE(reservations.check_out_date) < DATE('now')
+        AND (
+          ? = ''
+          OR guests.guest_name LIKE ?
+          OR guests.guest_surname LIKE ?
+          OR guests.email LIKE ?
+          OR guests.phone_number LIKE ?
+          OR CAST(reservations.id AS TEXT) LIKE ?
+          OR CAST(reservations.guest_count AS TEXT) LIKE ?
+          OR reservations.check_in_date LIKE ?
+          OR reservations.check_out_date LIKE ?
+        )
+      ORDER BY reservations.check_out_date DESC, reservations.id ASC
+      ''',
+      [
+        query.trim(),
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+        search,
+      ],
+    );
+    return rows.map((row) {
+      final reservationId = row['id'] as int;
+      return Reservation(
+        id: reservationId,
+        reservedRooms: _getReservedRooms(reservationId),
+        bedConfigurations: _getBedConfigurations(reservationId),
+        extraBeds: _getExtraBeds(reservationId),
+        guestName: row['guest_name'] as String,
+        guestSurname: row['guest_surname'] as String,
+        email: row['email'] as String?,
+        phoneNumber: row['phone_number'] as String?,
+        guestCount: row['guest_count'] as int,
+        checkInDate: DateTime.parse(row['check_in_date'] as String),
+        checkOutDate: DateTime.parse(row['check_out_date'] as String),
+        totalGrosze: row['total_grosze'] as int,
+      );
+    }).toList();
+  }
+
   int countReservations() {
     final result = DatabaseHelper.database.select('''
       SELECT COUNT(*) AS total

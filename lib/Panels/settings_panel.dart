@@ -2,24 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:hotel_app/database/pricing_repository.dart';
 import 'package:hotel_app/Panels/price_changing_panel.dart';
 import 'package:hotel_app/widgets/sidebar_button.dart';
-
+import 'package:hotel_app/Panels/reservation_history_panel.dart';
+import 'package:hotel_app/database/reservation_repository.dart';
 class SettingsPanel extends StatefulWidget {
   const SettingsPanel({
     super.key,
     required this.onClose,
     this.pricingRepository,
+    this.reservationRepository,
   });
 
   final VoidCallback onClose;
   final PricingRepository? pricingRepository;
-
+  final ReservationRepository? reservationRepository;
   @override
   State<SettingsPanel> createState() => _SettingsPanelState();
 }
 
 class _SettingsPanelState extends State<SettingsPanel> {
   int selectedSection = 1;
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -82,12 +83,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
                             ? PriceChangingPanel(
                                 pricingRepository: widget.pricingRepository,
                               )
-                            : const Center(
-                                child: Text(
-                                  'Historia rezerwacji będzie dostępna wkrótce.',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
+                            :  ReservationHistoryPanel(reservationRepository: widget.reservationRepository),
+                              
                       ),
                     ],
                   ),
