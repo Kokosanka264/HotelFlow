@@ -1,7 +1,10 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import 'database_helper.dart';
+import 'package:hotel_app/models/bed_configuration.dart';
 import 'package:hotel_app/models/guest.dart';
+import 'package:hotel_app/models/reservation.dart';
+import 'package:hotel_app/models/room.dart';
 
 class GuestRepository {
   GuestRepository({Database? database})
@@ -98,6 +101,142 @@ class GuestRepository {
     );
     return _database.select('SELECT last_insert_rowid() AS id').first['id']
         as int;
+  }
+
+  bool updateGuest({
+    required int guestId,
+    required String name,
+    required String surname,
+    String? email,
+    String? phoneNumber,
+  }) {
+    final normalizedName = name.trim();
+    final normalizedSurname = surname.trim();
+    if (normalizedName.isEmpty || normalizedSurname.isEmpty) {
+      throw ArgumentError('Guest name and surname cannot be empty.');
+    }
+
+    _database.execute(
+      '''
+      UPDATE guests
+      SET guest_name = ?, guest_surname = ?, email = ?, phone_number = ?
+      WHERE id = ?
+      ''',
+      [
+        normalizedName,
+        normalizedSurname,
+        _normalize(email),
+        _normalize(phoneNumber),
+        guestId,
+      ],
+    );
+    return (_database.select('SELECT changes() AS count').first['count'] as int) >
+        0;
+  }
+
+  bool removeGuestFromDb(int guestId) {
+    _database.execute('DELETE FROM guests WHERE id = ?', [guestId]);
+    return (_database.select('SELECT changes() AS count').first['count'] as int) >
+        0;
+  }
+
+  List<Reservation> getReservationsByGuestId(int guestId) {
+    final rows = _database.select(
+      '''
+      SELECT reservations.*, guests.guest_name, guests.guest_surname,
+             guests.email, guests.phone_number
+      FROM reservations
+      JOIN guests ON guests.id = reservations.guest_id
+      WHERE reservations.guest_id = ?
+      ORDER BY reservations.check_in_date DESC, reservations.id DESC
+      ''',
+      [guestId],
+    );
+
+    return rows.map((row) {
+      final reservationId = row['id'] as int;
+      return Reservation(
+        id: reservationId,
+        reservedRooms: _getReservedRooms(reservationId),
+        bedConfigurations: _getBedConfigurations(reservationId),
+        extraBeds: _getExtraBeds(reservationId),
+        guestName: row['guest_name'] as String,
+        guestSurname: row['guest_surname'] as String,
+        email: row['email'] as String?,
+        phoneNumber: row['phone_number'] as String?,
+        guestCount: row['guest_count'] as int,
+        checkInDate: DateTime.parse(row['check_in_date'] as String),
+        checkOutDate: DateTime.parse(row['check_out_date'] as String),
+        totalGrosze: row['total_grosze'] as int,
+      );
+    }).toList();
+  }
+
+  List<Room> _getReservedRooms(int reservationId) {
+    final rows = _database.select(
+      '''
+      SELECT rooms.*
+      FROM reservation_rooms
+      JOIN rooms ON rooms.id = reservation_rooms.room_id
+      WHERE reservation_rooms.reservation_id = ?
+      ORDER BY rooms.id
+      ''',
+      [reservationId],
+    );
+
+    return rows
+        .map(
+          (row) => Room(
+            id: row['id'] as int,
+            roomNumber: row['room_number'] as String,
+            capacity: row['capacity'] as int,
+            extraBed: (row['extra_bed'] as int) == 1,
+          ),
+        )
+        .toList();
+  }
+
+  Map<int, BedConfigurations> _getBedConfigurations(int reservationId) {
+    final rows = _database.select(
+      '''
+      SELECT room_id, bed_configuration
+      FROM reservation_rooms
+      WHERE reservation_id = ?
+      ''',
+      [reservationId],
+    );
+
+    return {
+      for (final row in rows)
+        row['room_id'] as int: BedConfigurations.values.byName(
+          row['bed_configuration'] as String,
+        ),
+    };
+  }
+
+  Map<int, bool> _getExtraBeds(int reservationId) {
+    final rows = _database.select(
+      '''
+      SELECT room_id, extraBed
+      FROM reservation_rooms
+      WHERE reservation_id = ?
+      ''',
+      [reservationId],
+    );
+    return {
+      for (final row in rows)
+        row['room_id'] as int: _parseExtraBed(row['extraBed']),
+    };
+  }
+
+  bool _parseExtraBed(Object? value) {
+    if (value == 1 || value == '1' || value == 'true') {
+      return true;
+    }
+    if (value == 0 || value == '0' || value == 'false') {
+      return false;
+    }
+    throw FormatException('Invalid extra-bed value: $value');
   }
 
   String? _normalize(String? value) {

@@ -10,6 +10,7 @@ class RoomConfigurationSection extends StatelessWidget {
     required this.onConfigurationChanged,
     required this.selectedExtraBeds,
     required this.onExtraBedChanged,
+    required this.numberOfGuests,
   });
 
   final List<Room> rooms;
@@ -18,6 +19,7 @@ class RoomConfigurationSection extends StatelessWidget {
   onConfigurationChanged;
   final Map<int, bool> selectedExtraBeds;
   final void Function(Room room, bool extraBed) onExtraBedChanged;
+  final int numberOfGuests;
 
   String _configurationLabel(BedConfigurations configuration) {
     return switch (configuration) {
@@ -27,6 +29,15 @@ class RoomConfigurationSection extends StatelessWidget {
       BedConfigurations.fourSingle => 'Cztery pojedyńcze łóżka',
       BedConfigurations.doubleAndTwoSingle => 'Podwójne łóżko i dwa pojedyńcze',
     };
+  }
+
+  int _selectedSpots() {
+    return rooms.fold(0, (total, room) {
+      final configurationSpots =
+          selectedConfigurations[room.id]?.spots ?? 0;
+      final extraBedSpots = selectedExtraBeds[room.id] == true ? 1 : 0;
+      return total + configurationSpots + extraBedSpots;
+    });
   }
 
   @override
@@ -79,6 +90,11 @@ class RoomConfigurationSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
+        Text(
+          '${_selectedSpots()} / $numberOfGuests',
+          style: Theme.of(context).textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }

@@ -118,8 +118,22 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     return nightlyTotal * _numberOfNights();
   }
 
+  int _selectedSpots() {
+    return widget.selectedRooms.fold(0, (total, room) {
+      final configurationSpots =
+          _selectedConfigurations[room.id]?.spots ?? 0;
+      final extraBedSpots = _selectedExtraBeds[room.id] == true ? 1 : 0;
+      return total + configurationSpots + extraBedSpots;
+    });
+  }
+
+  bool get _hasEnoughSpots => _selectedSpots() >= widget.numberOfGuests;
+
   Future<void> _submitReservation() async {
     if (_isSubmitting) {
+      return;
+    }
+    if (!_hasEnoughSpots) {
       return;
     }
     if (!_formKey.currentState!.validate()) {
@@ -359,6 +373,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                               rooms: widget.selectedRooms,
                               selectedConfigurations: _selectedConfigurations,
                               selectedExtraBeds: _selectedExtraBeds,
+                              numberOfGuests: widget.numberOfGuests,
                               onConfigurationChanged: (room, configuration) {
                                 setState(() {
                                   if (configuration == null) {
@@ -442,7 +457,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
-                            onPressed: _isSubmitting
+                            onPressed: _isSubmitting || !_hasEnoughSpots
                                 ? null
                                 : _submitReservation,
                             child: const Text('Reserve'),

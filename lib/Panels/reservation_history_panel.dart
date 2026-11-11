@@ -69,7 +69,25 @@ class _ReservationHistoryPanelState extends State<ReservationHistoryPanel> {
                       ),
                     ],
                   ),
-                  onTap: () => ReservationPreview(reservation: reservation),
+                  onTap: () {
+                    showDialog<void>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: Text(
+                          'Szczegóły rezerwacji #${reservation.id}',
+                        ),
+                        content: ReservationPreview(
+                          reservation: reservation,
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Zamknij'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 );
               },
             ),

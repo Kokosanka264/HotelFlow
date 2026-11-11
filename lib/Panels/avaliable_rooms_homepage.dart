@@ -65,6 +65,10 @@ class _AvaliableRoomsViewState extends State<AvaliableRoomsView> {
 
   @override
   Widget build(BuildContext context) {
+    if (avaliableRooms.isEmpty) {
+      return const Center(child: Text('Brak dostepnych pokoji'));
+    }
+
     return ListView.builder(
       itemCount: avaliableRooms.length,
       itemBuilder: (context, index) {

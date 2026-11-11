@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hotel_app/Panels/guest_reservations_panel.dart';
 import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/models/guest.dart';
 
@@ -15,32 +16,18 @@ class _GuestsListViewState extends State<GuestsListView> {
   String search = '';
   late List<Guest> _guests = widget.guestRepository.getGuestsBySearch(search);
 
-  String _optionalValue(String? value) {
-    return value == null || value.trim().isEmpty ? 'Nie podano' : value;
-  }
-
   void _showGuestDetails(Guest guest) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${guest.name} ${guest.surname}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ID gościa: ${guest.id}'),
-            Text('Imię: ${guest.name}'),
-            Text('Nazwisko: ${guest.surname}'),
-            Text('Adres e-mail: ${_optionalValue(guest.email)}'),
-            Text('Numer telefonu: ${_optionalValue(guest.phoneNumber)}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Zamknij'),
+      builder: (context) => Dialog(
+        child: SizedBox(
+          width: 700,
+          height: 600,
+          child: GuestReservationsPanel(
+            guest: guest,
+            guestRepository: widget.guestRepository,
           ),
-        ],
+        ),
       ),
     );
   }

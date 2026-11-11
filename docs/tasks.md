@@ -36,7 +36,7 @@
 | Generate test reservations | ✅ Done |
 | Implement database migrations | 🔄 In Progress |
 | Implement database backup and restore | ⏳ Not Started |
-| Implement client database | ⏳ Not Started |
+| Implement client database | ✅ Done |
 
 ## 3. Home Page — Room Availability
 
@@ -53,7 +53,7 @@
 | Impement add reservation button | ✅ Done |
 | Require clicking search befor refreshing the avaliable rooms | ✅ Done |
 | Remove all avaliable rooms while user changes input data | ✅ Done |
-| Implement the option when there are no avaliable rooms | ⏳ Not Started |
+| Implement the option when there are no avaliable rooms | ✅ Done |
 
 ## 4. Reservations
 
@@ -63,16 +63,16 @@
 | Implement paginated reservation list | ✅ Done |
 | Add previous and next buttons | ✅ Done |
 | Disable navigation beyond last page | ✅ Done |
-| Implement reservation search | ⏳ Not Started |
+| Implement reservation search | ✅ Done |
 | Implement reservation creation form | ✅ Done |
 | Connect Home Page to Add Reservation| ✅ Done |
 | Implement multi-room booking | ✅ Done |
 | Prevent overlapping bookings during saving | ⏳ Not Started |
 | Implement reservation cancellation | ✅ Done |
-| Implement checking current bed configuration is enough for specific number of people (extra bed case) | ⏳ Not Started |
-| Change add reservation panel so it matches new bed configurating system | ⏳ Not Started |
+| Implement checking current bed configuration is enough for specific number of people (extra bed case) |  ✅ Done |
+| Change add reservation panel so it matches new bed configurating system |  ✅ Done |
 | Change reservation repository, add hasExtraBed column | ✅ Done |
-| Add mandatory condition during picking bed configuration (extra bed case) | ⏳ Not Started |
+| Add mandatory condition during picking bed configuration (extra bed case) |  ✅ Done |
 
 ## 5. Calendar
 
@@ -97,9 +97,9 @@
 
 | Task | Status |
 |---|---|
-| Implement 'Add Client' | ⏳ Not Started |
-| Implement 'Remove Client' | ⏳ Not Started |
-| Implement 'Manage Client' | ⏳ Not Started |
+| Implement 'Add Client' | ✅ Done |
+| Implement 'Remove Client' | ✅ Done |
+| Implement 'Manage Client' | ✅ Done |
 | Make a ListView of all clients in database | ✅ Done |
 | Correct addGuest conditions in addReservation method | ✅ Done |
 | Checks if there are two exactly guests existing and if yes combines them into one | ⏳ Not Started |
@@ -120,9 +120,10 @@
 | Introduce systematic `flutter analyze` checks | 🔄 In Progress |
 | Add automated unit and widget tests | ⏳ Not Started |
 | Remove test reservation seeding from release builds | ⏳ Not Started |
-| Implement separate reservation history | ⏳ Not Started |
+| Implement separate reservation history | ✅ Done |
 | Prepare Windows desktop release | ⏳ Not Started |
 | Prepare user documentation for hotel staff | ⏳ Not Started |
+| Prevent to small sizing | ⏳ Not Started |
 
 ---
 
