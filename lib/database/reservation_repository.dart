@@ -10,6 +10,138 @@ import 'package:hotel_app/models/room.dart';
 class ReservationRepository {
   int? _nextReservationTotalGrosze;
 
+  int seedFakeReservations({int count = 100}) {
+    if (count <= 0) {
+      throw ArgumentError('Fake reservation count must be positive.');
+    }
+
+    final database = DatabaseHelper.database;
+    final existingSeed =
+        database.select('''
+      SELECT COUNT(*) AS count
+      FROM guests
+      WHERE guest_name LIKE 'Test Guest %'
+        AND guest_surname LIKE 'Reservation %'
+      ''').first['count']
+            as int;
+    if (existingSeed > 0) {
+      return 0;
+    }
+
+    final rooms = database.select('SELECT id, capacity FROM rooms ORDER BY id');
+    if (rooms.isEmpty) {
+      throw StateError('Cannot seed reservations without rooms.');
+    }
+
+    final today = DateTime.now();
+    final baseDate = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(const Duration(days: 100));
+    var created = 0;
+    var candidate = 0;
+
+    database.execute('BEGIN TRANSACTION');
+    var committed = false;
+    try {
+      while (created < count && candidate < count * rooms.length * 2) {
+        final checkIn = baseDate.add(Duration(days: candidate * 3));
+        final checkOut = checkIn.add(const Duration(days: 2));
+        final checkInText = checkIn.toIso8601String().split('T')[0];
+        final checkOutText = checkOut.toIso8601String().split('T')[0];
+        Map<String, Object?>? selectedRoom;
+
+        for (final room in rooms) {
+          final roomId = room['id'] as int;
+          final conflicts = database.select(
+            '''
+            SELECT 1
+            FROM reservation_rooms AS rr
+            JOIN reservations AS r ON r.id = rr.reservation_id
+            WHERE rr.room_id = ?
+              AND r.check_in_date < ?
+              AND r.check_out_date > ?
+            LIMIT 1
+            ''',
+            [roomId, checkOutText, checkInText],
+          );
+          if (conflicts.isEmpty) {
+            selectedRoom = {'id': roomId, 'capacity': room['capacity'] as int};
+            break;
+          }
+        }
+
+        candidate++;
+        if (selectedRoom == null) {
+          continue;
+        }
+
+        final guestNumber = created + 1;
+        database.execute(
+          '''
+          INSERT INTO guests (
+            guest_name, guest_surname, email, phone_number
+          ) VALUES (?, ?, ?, ?)
+          ''',
+          [
+            'Test Guest $guestNumber',
+            'Reservation $guestNumber',
+            'test.guest$guestNumber@example.com',
+            '+48000000${guestNumber.toString().padLeft(3, '0')}',
+          ],
+        );
+        final guestId =
+            database.select('SELECT last_insert_rowid() AS id').first['id']
+                as int;
+        final roomId = selectedRoom['id'] as int;
+        final capacity = selectedRoom['capacity'] as int;
+        final configuration = capacity >= 4 ? 'fourSingle' : 'twin';
+
+        database.execute(
+          '''
+          INSERT INTO reservations (
+            guest_id, guest_count, check_in_date, check_out_date, total_grosze
+          ) VALUES (?, ?, ?, ?, ?)
+          ''',
+          [
+            guestId,
+            capacity >= 4 ? 4 : 2,
+            checkInText,
+            checkOutText,
+            30000 + (created * 1000),
+          ],
+        );
+        final reservationId =
+            database.select('SELECT last_insert_rowid() AS id').first['id']
+                as int;
+        database.execute(
+          '''
+          INSERT INTO reservation_rooms (
+            reservation_id, room_id, bed_configuration, extraBed
+          ) VALUES (?, ?, ?, 0)
+          ''',
+          [reservationId, roomId, configuration],
+        );
+        created++;
+      }
+
+      if (created != count) {
+        throw StateError(
+          'Unable to create $count non-overlapping reservations.',
+        );
+      }
+      database.execute('COMMIT');
+      committed = true;
+      DatabaseHelper.rebuildSearchIndexes();
+      return created;
+    } finally {
+      if (!committed) {
+        database.execute('ROLLBACK');
+      }
+    }
+  }
+
   void setNextReservationTotalGrosze(int totalGrosze) {
     if (totalGrosze < 0) {
       throw ArgumentError('Reservation total cannot be negative.');
@@ -50,7 +182,13 @@ class ReservationRepository {
       final guestRepository = GuestRepository();
       final resolvedGuestId =
           guestId ??
-          guestRepository.addGuest(guestName, guestSurname, email, phoneNumber);
+          guestRepository.addGuest(
+            guestName,
+            guestSurname,
+            email,
+            phoneNumber,
+            rebuildIndexes: false,
+          );
 
       database.execute(
         '''
@@ -83,6 +221,7 @@ class ReservationRepository {
 
       database.execute('COMMIT');
       committed = true;
+      DatabaseHelper.rebuildSearchIndexes();
     } finally {
       _nextReservationTotalGrosze = null;
       if (!committed) {
@@ -96,7 +235,22 @@ class ReservationRepository {
     database.execute('DELETE FROM reservations WHERE id = ?', [reservation.id]);
     final changes =
         database.select('SELECT changes() AS count').first['count'] as int;
+    DatabaseHelper.rebuildSearchIndexes();
     return changes > 0;
+  }
+
+  int removeReservationsOlderThanTwoMonths() {
+    final database = DatabaseHelper.database;
+    database.execute('''
+      DELETE FROM reservations
+      WHERE DATE(check_out_date) < DATE('now', '-2 months')
+    ''');
+    final removed =
+        database.select('SELECT changes() AS count').first['count'] as int;
+    if (removed > 0) {
+      DatabaseHelper.rebuildSearchIndexes();
+    }
+    return removed;
   }
 
   List<Reservation> getReservationsForDate(DateTime date) {
@@ -131,39 +285,22 @@ class ReservationRepository {
   }
 
   List<Reservation> getPastReservations([String query = '']) {
-    final search = '%${query.trim()}%';
-    final rows = DatabaseHelper.database.select(
-      '''
+    final ftsQuery = _ftsQuery(query);
+    final searchClause = ftsQuery == null
+        ? ''
+        : 'AND reservation_search MATCH ?';
+    final parameters = ftsQuery == null ? <Object?>[] : <Object?>[ftsQuery];
+    final rows = DatabaseHelper.database.select('''
       SELECT reservations.*, guests.guest_name, guests.guest_surname,
              guests.email, guests.phone_number
       FROM reservations
       JOIN guests ON guests.id = reservations.guest_id
+      JOIN reservation_search ON reservation_search.reservation_id =
+        reservations.id
       WHERE DATE(reservations.check_out_date) < DATE('now')
-        AND (
-          ? = ''
-          OR guests.guest_name LIKE ?
-          OR guests.guest_surname LIKE ?
-          OR guests.email LIKE ?
-          OR guests.phone_number LIKE ?
-          OR CAST(reservations.id AS TEXT) LIKE ?
-          OR CAST(reservations.guest_count AS TEXT) LIKE ?
-          OR reservations.check_in_date LIKE ?
-          OR reservations.check_out_date LIKE ?
-        )
+        $searchClause
       ORDER BY reservations.check_out_date DESC, reservations.id ASC
-      ''',
-      [
-        query.trim(),
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-      ],
-    );
+      ''', parameters);
     return rows.map((row) {
       final reservationId = row['id'] as int;
       return Reservation(
@@ -198,42 +335,25 @@ class ReservationRepository {
     String query = '',
   ]) {
     final offset = page * pageSize;
-    final search = '%${query.trim()}%';
-    final rows = DatabaseHelper.database.select(
-      '''
+    final ftsQuery = _ftsQuery(query);
+    final searchClause = ftsQuery == null
+        ? ''
+        : 'AND reservation_search MATCH ?';
+    final parameters = ftsQuery == null
+        ? <Object?>[pageSize, offset]
+        : <Object?>[ftsQuery, pageSize, offset];
+    final rows = DatabaseHelper.database.select('''
       SELECT reservations.*, guests.guest_name, guests.guest_surname,
              guests.email, guests.phone_number
       FROM reservations
       JOIN guests ON guests.id = reservations.guest_id
+      JOIN reservation_search ON reservation_search.reservation_id =
+        reservations.id
       WHERE Date(reservations.check_out_date) >= Date('now')
-        AND (
-          ? = ''
-          OR guests.guest_name LIKE ?
-          OR guests.guest_surname LIKE ?
-          OR guests.email LIKE ?
-          OR guests.phone_number LIKE ?
-          OR CAST(reservations.id AS TEXT) LIKE ?
-          OR CAST(reservations.guest_count AS TEXT) LIKE ?
-          OR reservations.check_in_date LIKE ?
-          OR reservations.check_out_date LIKE ?
-        )
+        $searchClause
       ORDER BY reservations.check_in_date ASC, reservations.id ASC
       LIMIT ? OFFSET ?
-      ''',
-      [
-        query.trim(),
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-        search,
-        pageSize,
-        offset,
-      ],
-    );
+      ''', parameters);
     return rows.map((row) {
       final reservationId = row['id'] as int;
       return Reservation(
@@ -262,6 +382,18 @@ class ReservationRepository {
       for (final row in rows)
         row['room_id'] as int: _parseExtraBed(row['extraBed']),
     };
+  }
+
+  String? _ftsQuery(String query) {
+    final terms = query
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .map((term) => term.replaceAll('"', ''))
+        .where((term) => term.isNotEmpty)
+        .map((term) => '"$term"*')
+        .toList();
+    return terms.isEmpty ? null : terms.join(' OR ');
   }
 
   bool _parseExtraBed(Object? value) {

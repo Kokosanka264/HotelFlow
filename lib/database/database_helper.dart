@@ -133,11 +133,101 @@ ON guests(email);
 ON guests(phone_number);
 ''');
 
-    final tables = database.select(
-      "SELECT name FROM sqlite_master WHERE type='table'",
-    );
+     ensureSearchIndexes();
+     rebuildSearchIndexes();
+
+     final tables = database.select(
+       "SELECT name FROM sqlite_master WHERE type='table'",
+     );
     for (final table in tables) {
       print(table['name']);
+    }
+  }
+
+  static void ensureSearchIndexes([Database? targetDatabase]) {
+    final target = targetDatabase ?? database;
+    target.execute('''
+      CREATE TABLE IF NOT EXISTS search_index_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+    final reservationIndexVersion = target.select(
+      '''
+      SELECT value
+      FROM search_index_metadata
+      WHERE key = 'reservation_search_version'
+      ''',
+    );
+    if (reservationIndexVersion.isEmpty ||
+        reservationIndexVersion.first['value'] != '2') {
+      target.execute('DROP TABLE IF EXISTS reservation_search');
+    }
+    target.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS guest_search USING fts5(
+        guest_id UNINDEXED,
+        guest_name,
+        guest_surname,
+        email,
+        phone_number
+      )
+    ''');
+    target.execute('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS reservation_search USING fts5(
+        reservation_id,
+        guest_id UNINDEXED,
+        guest_name,
+        guest_surname,
+        email,
+        phone_number,
+        guest_count,
+        check_in_date,
+        check_out_date
+      )
+    ''');
+    target.execute('''
+      INSERT OR REPLACE INTO search_index_metadata (key, value)
+      VALUES ('reservation_search_version', '2')
+    ''');
+  }
+
+  static void rebuildSearchIndexes([Database? targetDatabase]) {
+    final target = targetDatabase ?? database;
+    ensureSearchIndexes(target);
+
+    final hasGuests = target.select(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guests'",
+    ).isNotEmpty;
+    if (hasGuests) {
+      target.execute('DELETE FROM guest_search');
+      target.execute('''
+        INSERT INTO guest_search (
+          guest_id, guest_name, guest_surname, email, phone_number
+        )
+        SELECT id, guest_name, guest_surname, COALESCE(email, ''),
+               COALESCE(phone_number, '')
+        FROM guests
+      ''');
+    }
+
+    final hasReservations = target.select(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservations'",
+    ).isNotEmpty;
+    if (hasReservations) {
+      target.execute('DELETE FROM reservation_search');
+      target.execute('''
+        INSERT INTO reservation_search (
+          reservation_id, guest_id, guest_name, guest_surname,
+          email, phone_number, guest_count, check_in_date, check_out_date
+        )
+        SELECT reservations.id, reservations.guest_id,
+               guests.guest_name, guests.guest_surname,
+               COALESCE(guests.email, ''), COALESCE(guests.phone_number, ''),
+               reservations.guest_count, reservations.check_in_date,
+               reservations.check_out_date
+        FROM reservations
+        JOIN guests ON guests.id = reservations.guest_id
+      ''');
     }
   }
 

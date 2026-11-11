@@ -38,17 +38,26 @@ class _GuestsListViewState extends State<GuestsListView> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: TextField(
-            decoration: const InputDecoration(
-              labelText: 'Wyszukaj klienta',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (value) {
-              setState(() {
-                search = value;
-                _guests = widget.guestRepository.getGuestsBySearch(search);
-              });
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Wyszukaj klienta',
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    search = value;
+                    _guests = widget.guestRepository.getGuestsBySearch(search);
+                  });
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('Znaleziono: ${_guests.length}'),
+              ),
+            ],
           ),
         ),
         Expanded(

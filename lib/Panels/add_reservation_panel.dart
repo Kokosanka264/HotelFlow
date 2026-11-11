@@ -120,8 +120,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
 
   int _selectedSpots() {
     return widget.selectedRooms.fold(0, (total, room) {
-      final configurationSpots =
-          _selectedConfigurations[room.id]?.spots ?? 0;
+      final configurationSpots = _selectedConfigurations[room.id]?.spots ?? 0;
       final extraBedSpots = _selectedExtraBeds[room.id] == true ? 1 : 0;
       return total + configurationSpots + extraBedSpots;
     });
@@ -199,6 +198,25 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
         checkInDate: widget.checkIn,
         checkOutDate: widget.checkOut,
       );
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Sukces'),
+          content: const Text('Rezerwacja została pomyślnie dodana.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
       Navigator.of(context).pop(true);
     } on ArgumentError catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(

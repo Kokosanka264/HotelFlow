@@ -33,19 +33,28 @@ class _ReservationHistoryPanelState extends State<ReservationHistoryPanel> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Wyszukaj rezerwacje',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                  reservations = reservationRepository.getPastReservations(
-                    searchQuery,
-                  );
-                });
-              },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Wyszukaj rezerwacje',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value;
+                      reservations = reservationRepository.getPastReservations(
+                        searchQuery,
+                      );
+                    });
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('Znaleziono: ${reservations.length}'),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -73,12 +82,8 @@ class _ReservationHistoryPanelState extends State<ReservationHistoryPanel> {
                     showDialog<void>(
                       context: context,
                       builder: (_) => AlertDialog(
-                        title: Text(
-                          'Szczegóły rezerwacji #${reservation.id}',
-                        ),
-                        content: ReservationPreview(
-                          reservation: reservation,
-                        ),
+                        title: Text('Szczegóły rezerwacji #${reservation.id}'),
+                        content: ReservationPreview(reservation: reservation),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(),

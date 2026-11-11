@@ -1,6 +1,7 @@
 import 'package:sqlite3/sqlite3.dart';
 
 import 'database_helper.dart';
+
 import 'package:hotel_app/models/bed_configuration.dart';
 import 'package:hotel_app/models/guest.dart';
 import 'package:hotel_app/models/reservation.dart';
@@ -8,21 +9,33 @@ import 'package:hotel_app/models/room.dart';
 
 class GuestRepository {
   GuestRepository({Database? database})
-    : _database = database ?? DatabaseHelper.database;
+    : _database = database ?? DatabaseHelper.database {
+    DatabaseHelper.ensureSearchIndexes(_database);
+    DatabaseHelper.rebuildSearchIndexes(_database);
+  }
 
   final Database _database;
 
   List<Guest> getGuestsBySearch(String query) {
-    final search = '%$query%';
-    final rows = _database.select('''
-      SELECT id, guest_name, guest_surname, email, phone_number
-      FROM guests
-      WHERE guest_name LIKE ?
-         OR guest_surname LIKE ?
-         OR email LIKE ?
-         OR phone_number LIKE ?
-      ORDER BY guest_name COLLATE NOCASE, guest_surname COLLATE NOCASE, id
-    ''', [search, search, search, search]);
+    final ftsQuery = _ftsQuery(query);
+    final rows = ftsQuery == null
+        ? _database.select('''
+            SELECT id, guest_name, guest_surname, email, phone_number
+            FROM guests
+            ORDER BY guest_name COLLATE NOCASE, guest_surname COLLATE NOCASE, id
+          ''')
+        : _database.select(
+            '''
+            SELECT guests.id, guests.guest_name, guests.guest_surname,
+                   guests.email, guests.phone_number
+            FROM guests
+            JOIN guest_search ON guest_search.guest_id = guests.id
+            WHERE guest_search MATCH ?
+            ORDER BY guests.guest_name COLLATE NOCASE,
+                     guests.guest_surname COLLATE NOCASE, guests.id
+          ''',
+            [ftsQuery],
+          );
     return rows
         .map(
           (row) => Guest(
@@ -58,15 +71,12 @@ class GuestRepository {
       arguments.add(normalizedPhoneNumber);
     }
 
-    final rows = _database.select(
-      '''
+    final rows = _database.select('''
       SELECT id, guest_name, guest_surname, email, phone_number
       FROM guests
       WHERE ${conditions.join(' OR ')}
       LIMIT 2
-      ''',
-      arguments,
-    );
+      ''', arguments);
 
     if (rows.length > 1) {
       throw ArgumentError(
@@ -90,8 +100,9 @@ class GuestRepository {
     String name,
     String surname,
     String? email,
-    String? phoneNumber,
-  ) {
+    String? phoneNumber, {
+    bool rebuildIndexes = true,
+  }) {
     _database.execute(
       '''
       INSERT INTO guests (guest_name, guest_surname, email, phone_number)
@@ -99,6 +110,9 @@ class GuestRepository {
       ''',
       [name.trim(), surname.trim(), _normalize(email), _normalize(phoneNumber)],
     );
+    if (rebuildIndexes) {
+      DatabaseHelper.rebuildSearchIndexes(_database);
+    }
     return _database.select('SELECT last_insert_rowid() AS id').first['id']
         as int;
   }
@@ -130,14 +144,20 @@ class GuestRepository {
         guestId,
       ],
     );
-    return (_database.select('SELECT changes() AS count').first['count'] as int) >
+    final updated =
+        (_database.select('SELECT changes() AS count').first['count'] as int) >
         0;
+    DatabaseHelper.rebuildSearchIndexes(_database);
+    return updated;
   }
 
   bool removeGuestFromDb(int guestId) {
     _database.execute('DELETE FROM guests WHERE id = ?', [guestId]);
-    return (_database.select('SELECT changes() AS count').first['count'] as int) >
+    final removed =
+        (_database.select('SELECT changes() AS count').first['count'] as int) >
         0;
+    DatabaseHelper.rebuildSearchIndexes(_database);
+    return removed;
   }
 
   List<Reservation> getReservationsByGuestId(int guestId) {
@@ -237,6 +257,18 @@ class GuestRepository {
       return false;
     }
     throw FormatException('Invalid extra-bed value: $value');
+  }
+
+  String? _ftsQuery(String query) {
+    final terms = query
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .map((term) => term.replaceAll('"', ''))
+        .where((term) => term.isNotEmpty)
+        .map((term) => '"$term"*')
+        .toList();
+    return terms.isEmpty ? null : terms.join(' OR ');
   }
 
   String? _normalize(String? value) {

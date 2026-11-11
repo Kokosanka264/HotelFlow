@@ -1,6 +1,6 @@
 # HotelFlow — Engineering Decision Log
 
-**Snapshot:** 9 November 2026. A lightweight decision log, not a claim of formal ADR approval. Each entry states the choice, rationale, trade-off, implementation status and revisiting trigger.
+**Snapshot:** 11 November 2026. A lightweight decision log, not a claim of formal ADR approval. Each entry states the choice, rationale, trade-off, implementation status and revisiting trigger.
 
 ## Development chronology
 
@@ -66,21 +66,21 @@
 - **Choice:** `NOT EXISTS` query excludes rooms with overlapping reservations for the entire requested interval.
 - **Why:** Only matching room records cross the database/UI boundary; avoids loading all bookings into Dart.
 - **Trade-off:** Query correctness depends on consistent date format and a fresh check at save time.
-- **Status:** Implemented in `RoomRepository.getAvaliableRooms`; UI search flow not fully wired.
+- **Status:** Implemented in `RoomRepository.getAvaliableRooms`; Home search and multi-room selection are wired.
 
 ## DEC-009 — Paginate reservations in sets of 20
 
 - **Choice:** Database-side `LIMIT/OFFSET` plus Flutter `ListView.builder`, controlled by previous/next arrows above the list.
 - **Why:** Quick navigation and predictable amount of loaded data, even as bookings accumulate.
-- **Trade-off:** Needs a total-count query, correct last-page disabling and a search filter; `OFFSET` can be costly at extremely large offsets.
-- **Status:** Partial implementation: pagination/list works, right-arrow boundary incomplete.
+- **Trade-off:** The displayed result count is the loaded page count, not a separate global filtered count; `OFFSET` can be costly at extremely large offsets.
+- **Status:** Implemented with FTS5 filtering, a 20-row page size, result count under the search field, and navigation controls.
 
 ## DEC-010 — Keep historical bookings separate from daily reservations
 
-- **Choice:** Main Reservations view shows active/upcoming bookings; historic bookings should be available in a less prominent, separate area, possibly Settings.
+- **Choice:** Main Reservations view shows active/upcoming bookings; historic bookings are available in a less prominent Settings section.
 - **Why:** Client wants the primary screen uncluttered.
 - **Trade-off:** Archival, data retention, accounting obligations and deletion all require agreement.
-- **Status:** Settings entry is present with a placeholder; history data workflow and retention policy are **not implemented**.
+- **Status:** Implemented with `getPastReservations(query)`, FTS5 search, result count and reservation preview. Two-month cleanup is explicit but not scheduled.
 
 ## DEC-011 — Model bed layouts explicitly
 
@@ -98,10 +98,10 @@
 
 ## DEC-013 — Seed development data to test pagination and conflicts
 
-- **Choice:** Add idempotent `seedRooms()` for development room data; keep reservation seeding available only as an explicit development helper.
+- **Choice:** Add idempotent `seedRooms()` for room inventory; keep fake reservation seeding available only as an explicit development helper.
 - **Why:** Enables realistic UI tests, especially the second page with one item.
 - **Trade-off:** Seeded rooms are development data and startup seeding must be guarded before production. Reservation seed helpers can create stale sample data if called indiscriminately.
-- **Status:** Room seeding is called at startup; reservation seeding is not called by the current startup path.
+- **Status:** Room seeding is called at startup; `seedFakeReservations()` is not called by the current startup path.
 
 ## DEC-014 — Keep sensitive guest data out of GitHub
 
@@ -154,10 +154,10 @@
 
 ## DEC-021 — Settings overlay with internal section navigation
 
-- **Choice:** Keep Settings as a near-full-screen overlay and use a left navigation column for Cennik and the reservation-history placeholder.
+- **Choice:** Keep Settings as a near-full-screen overlay and use a left navigation column for Cennik and reservation history.
 - **Why:** Reuses the existing sidebar/main-panel interaction pattern without adding a separate route.
-- **Trade-off:** Reservation history still needs its own repository query and UI workflow.
-- **Status:** Cennik implemented; history placeholder only.
+- **Trade-off:** Retention scheduling, backups and legal retention rules still need agreement.
+- **Status:** Cennik and reservation history are implemented; cleanup remains explicit.
 
 ## Decisions still open
 
@@ -165,7 +165,7 @@
 2. **Capacity:** whether standard rooms allow 3 people only when extra bed is explicitly chosen; bed combinations and minors rules.
 3. **Data policy:** historical retention duration, lawful recordkeeping, and whether to anonymize instead of delete.
 4. **Persistence:** move to local app-data directory; backups, migration versioning, recovery UI.
-5. **Search:** how to synchronize committed criteria, available results and multi-room selections.
+5. **Search and retention:** whether to add a global filtered-count query and when to schedule the two-month cleanup.
 6. **Release:** Windows installer, app updates, error logging, data backup and handover to reception staff.
 
 ## Updating this log

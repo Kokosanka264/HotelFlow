@@ -2,7 +2,7 @@
 
 **A local-first hotel reservation and room-availability desktop application** built with **Flutter, Dart and SQLite**.
 
-> **Status:** early development / functional prototype (documentation snapshot: **9 November 2026**). This is **not production-ready**. The hotel-facing UI is primarily in Polish. The app is branded HotelFlow; the Flutter package name is currently `hotel_app`.
+> **Status:** early development / functional prototype (documentation snapshot: **11 November 2026**). This is **not production-ready**. The hotel-facing UI is primarily in Polish. The app is branded HotelFlow; the Flutter package name is currently `hotel_app`.
 
 HotelFlow is being developed around the workflow of a small hotel with **24 fixed rooms**. It aims to make everyday reception tasks straightforward: inspect room details, check whether rooms are free for specific dates, browse current and upcoming reservations, view bookings by day, and eventually complete reservations spanning multiple rooms.
 
@@ -10,18 +10,20 @@ HotelFlow is being developed around the workflow of a small hotel with **24 fixe
 
 | Area | Current implementation | Status |
 | --- | --- | --- |
-| Desktop app shell | Flutter Material app with a persistent sidebar, four main pages, a settings overlay, and a five-second startup splash | Implemented |
+| Desktop app shell | Flutter Material app with a persistent sidebar, five main pages, a settings overlay, and a five-second startup splash | Implemented |
 | Rooms | Database repository, list, room-detail dialog, seed of 24 rooms | Implemented; needs validation tests |
 | SQLite | Local `sqlite3` database, schema initialization, foreign-key pragma, basic indexes | Implemented; requires hardening |
-| Test data | Seeded rooms; no reservation seeding is called from the current startup path | Development-only room seed |
+| Test data | Seeded rooms; explicit `seedFakeReservations()` helper is available but not called at startup | Development-only data |
 | Room search | Check-in/check-out inputs, guest count, validation dialog, and `NOT EXISTS` SQL query | Implemented; availability results and multi-room selection are wired |
 | Date input | Reusable editable text field plus calendar picker, formatting and validity callback | Implemented; edge cases remain |
-| Reservations | Query current/upcoming reservations, 20-per-page `LIMIT/OFFSET` list, detail dialog | Prototype; last-page control and search missing |
+| Reservations | Query current/upcoming reservations, 20-per-page `LIMIT/OFFSET` list, FTS5 search, result count, detail dialog and deletion | Implemented; transactional overlap re-check remains |
 | Pricing | Capacity-based nightly defaults, editable Settings rates, per-booking room overrides, historical totals | Implemented; seasonal pricing and discounts not included |
 | Calendar | Date selection, arrival/current/departure badges, detail preview, and deletion | Implemented; broader history workflow remains separate |
-| Bed configurations | `BedConfigurations` enum | Defined, not persisted or wired to bookings |
+| Bed configurations | `BedConfigurations` enum and per-room selection | Implemented and persisted in `reservation_rooms` |
 | Multi-room booking | Selecting multiple rooms and completing one combined booking with per-room configuration | Implemented; schema and pricing details still need further hardening |
-| Hidden reservation history | Settings button and placeholder section for future historical reservations | UI placeholder; history data workflow not implemented |
+| Reservation history | Settings section with past-reservation query, FTS5 search, result count and detail preview | Implemented; cleanup is explicit, not scheduled automatically |
+| Guests | Guest search, details, reservations, edit and deletion with confirmation | Implemented |
+| Search indexes | SQLite FTS5 indexes for guests and reservations | Implemented and rebuilt after relevant mutations |
 
 **Important distinction:** a feature can be present in source code without having complete end-to-end tests or a finished reception workflow. Check the open issues before using HotelFlow with real guest data.
 
@@ -35,7 +37,7 @@ HotelFlow is being developed around the workflow of a small hotel with **24 fixe
 - Room availability must be checked for the **entire requested stay**, not just on check-in day.
 - Default nightly rates are 300 PLN for capacity-2 rooms, 500 PLN for capacity-4 rooms, and 60 PLN for an extra bed; rates are editable in Settings.
 - Reservation totals are stored as integer grosze snapshots and are not changed by later pricing edits.
-- Multiple-room selection and per-room bed layouts are business requirements, not yet supported by the current reservation schema.
+- Multiple-room selection and per-room bed layouts are supported by the current reservation schema.
 
 ## Tech stack
 
@@ -61,7 +63,7 @@ flutter pub get
 flutter run -d windows
 ```
 
-The application shows a Flutter startup splash for at least five seconds, initializes the database, creates tables, and seeds the fixed rooms. The current startup path does not invoke reservation test seeding. **Do not launch the existing build against a real hotel database without reviewing room seeding and migration behavior.**
+The application shows a Flutter startup splash for at least five seconds, initializes the database, creates tables and FTS5 search indexes, and seeds the fixed rooms. The current startup path does not invoke reservation test seeding. **Do not launch the existing build against a real hotel database without reviewing room seeding and migration behavior.**
 
 For static checks:
 
@@ -92,16 +94,18 @@ lib/
     rooms_panel.dart
     reservation_panel.dart          # reservation pagination controls
     list_view_panel_reservations.dart
+    reservation_history_panel.dart  # past reservation search
     calendar_panel.dart
     in_this_day_reservations.dart
-    add_reservation_panel.dart      # placeholder
-    settings.dart                   # settings overlay navigation
+    add_reservation_panel.dart      # reservation form and success dialog
+    settings_panel.dart             # settings overlay navigation
     price_changing_panel.dart       # editable pricing settings
     hotel_flow_splash_screen.dart   # Flutter startup screen
   database/
     database_helper.dart            # SQLite connection, schema, seed data
     room_repository.dart
     reservation_repository.dart
+    guest_repository.dart
     pricing_repository.dart
   models/
     room.dart
@@ -128,13 +132,14 @@ Names in this tree deliberately match the present source files, including `avali
 
 ## How the app works today
 
-1. `main()` starts Flutter immediately; `HotelFlow` displays the splash while database initialization, table creation, room seeding, and a five-second minimum delay complete.
+1. `main()` starts Flutter immediately; `HotelFlow` displays the splash while database initialization, table creation, search-index rebuilding, room seeding, and a five-second minimum delay complete.
 2. `MainFrame` owns main navigation and opens Settings as a near-full-screen overlay with a close button; `MainPanel` maps the other sidebar selections to Home, Rooms, Reservations, Calendar, and Guests.
-3. The Home form validates dates and guest count, queries available rooms, supports selecting multiple rooms, and opens the reservation form.
-4. The reservation form loads pricing defaults, allows per-room nightly overrides, calculates the stay total, and saves a historical total in grosze.
-5. The Reservations page uses `ReservationRepository.getReservationsPage(page, pageSize)` and `ListView.builder`; clicking a row opens a detail dialog with deletion.
+3. The Home form validates dates and guest count, queries available rooms, supports selecting multiple rooms, validates bed configurations/capacity, and opens the reservation form.
+4. The reservation form loads pricing defaults, allows per-room nightly overrides, calculates the stay total, reuses matching guests when confirmed, creates new guests otherwise, saves a historical total in grosze, and shows a success dialog after commit.
+5. The Reservations page uses `ReservationRepository.getReservationsPage(page, pageSize, query)` and `ListView.builder`; FTS5 search and a result count appear under the search bar. Clicking a row opens a detail dialog with deletion.
 6. The Calendar page loads today's reservations on open, filters by selected date, marks arrivals/current/departures, and supports detail/deletion dialogs.
-7. Settings opens with the history placeholder selected; Cennik displays the editable capacity-2, capacity-4, and extra-bed rates.
+7. Guests can be searched with FTS5, opened to view their reservations, edited, and deleted when they have no reservations.
+8. Settings contains editable pricing and a searchable reservation-history panel. `removeReservationsOlderThanTwoMonths()` is available for explicit cleanup and is not run automatically.
 
 ## Development timeline
 
@@ -148,13 +153,11 @@ The current `main` branch contains the code described above, but some changes we
 
 ## Next milestones
 
-1. Repair the Home search flow so results change **only** after a successful Search action; display empty/loading states and select multiple rooms.
-2. Strengthen date and guest validation, conflict checks, checkout boundary behavior and tests.
-3. Add reservation pagination count and search (guest name, surname, room number).
-4. Design group bookings with per-room guests and bed configurations, then migrate the schema.
-5. Create reservation management (create/edit/cancel) with transactional re-checking of availability.
-6. Put short-lived historical reservations in a **separate, unobtrusive location** (possibly Settings); define a retention policy based on **check-out**, subject to legal/operational requirements.
-7. Improve local data storage, backups, deployment packaging, UI polish, and automated checks.
+1. Add transactional overlap re-checking during reservation save.
+2. Strengthen date/timezone and capacity validation and add focused repository/widget tests.
+3. Add explicit scheduling or user-facing controls for two-month reservation cleanup after confirming retention requirements.
+4. Add reservation editing and improve refresh behavior across all panels.
+5. Improve local data storage, backups, deployment packaging, UI polish, and automated checks.
 
 ## Documentation
 

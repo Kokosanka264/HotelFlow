@@ -22,7 +22,7 @@
 | Implement sidebar navigation | ✅ Done |
 | Connect main application panels | ✅ Done |
 | Establish consistent UI styling | 🔄 In Progress |
-| Improve searching system| 🔄 In Progress |
+| Improve searching system| ✅ Done |
 
 ## 2. Database
 
@@ -31,7 +31,7 @@
 | Initialize SQLite database | ✅ Done |
 | Create rooms and reservations tables | ✅ Done |
 | Implement RoomRepository | 🔄 In Progress |
-| Implement ReservationRepository | 🔄 In Progress |
+| Implement ReservationRepository | ✅ Done |
 | Seed 24 hotel rooms | ✅ Done |
 | Generate test reservations | ✅ Done |
 | Implement database migrations | 🔄 In Progress |
@@ -102,7 +102,7 @@
 | Implement 'Manage Client' | ✅ Done |
 | Make a ListView of all clients in database | ✅ Done |
 | Correct addGuest conditions in addReservation method | ✅ Done |
-| Checks if there are two exactly guests existing and if yes combines them into one | ⏳ Not Started |
+| Checks if there are two exactly guests existing and if yes combines them into one | ✅ Done |
 
 ## 8. Pricing
 
@@ -119,7 +119,7 @@
 |---|---|
 | Introduce systematic `flutter analyze` checks | 🔄 In Progress |
 | Add automated unit and widget tests | ⏳ Not Started |
-| Remove test reservation seeding from release builds | ⏳ Not Started |
+| Remove test reservation seeding from release builds | ✅ Done |
 | Implement separate reservation history | ✅ Done |
 | Prepare Windows desktop release | ⏳ Not Started |
 | Prepare user documentation for hotel staff | ⏳ Not Started |
@@ -129,10 +129,10 @@
 
 ## Current Development Focus
 
-- Harden reservation writes and database migrations.
-- Complete reservation history in Settings.
+- Harden reservation writes, overlap checks and database migrations.
+- Add focused tests for FTS search, date boundaries, cleanup and reservation transactions.
 - Add detailed persisted room-price snapshots and stronger pricing tests.
-- Remove or guard development-only startup behavior before production.
+- Decide when explicit two-month cleanup should be scheduled.
 
 ## Development Notes
 

@@ -1,6 +1,6 @@
 # HotelFlow — Database and Data Integrity
 
-**Snapshot:** 9 November 2026. Source: `lib/database/database_helper.dart`, `room_repository.dart`, `reservation_repository.dart`, and `pricing_repository.dart`. This is documentation of the **current schema**, with proposed improvements explicitly identified.
+**Snapshot:** 11 November 2026. Source: `lib/database/database_helper.dart`, `room_repository.dart`, `reservation_repository.dart`, `guest_repository.dart`, and `pricing_repository.dart`. This is documentation of the **current schema**, with proposed improvements explicitly identified.
 
 ## 1. Storage architecture
 
@@ -101,7 +101,7 @@ Dates are written by `ReservationRepository.addReservation()` as ISO calendar-da
 
 ### Important integrity gaps
 
-- **Double-booking is not prevented on regular writes.** `ReservationRepository.addReservation()` has no overlap query or transaction. Only `seedReservations()` performs an overlap check.
+- **Double-booking is not prevented on regular writes.** `ReservationRepository.addReservation()` uses a database transaction but does not repeat the room-overlap query at save time. The Home search and fake-data helper perform availability checks earlier.
 - **Over-capacity reservations can be stored** by `addReservation()`: no SQL or repository validation checks `guest_count <= room.capacity` or optional extra-bed rules.
 - **Zero-night stays:** repository validation rejects `checkInDate.isAfter(checkOutDate)` but does not itself reject equality; table CHECK rejects equal stored date strings. Validate before writing, with clear UI feedback.
 - **Date normalization:** repository validity checks compare full `DateTime` values, then persist only the date. Normalize to calendar dates first.
@@ -134,8 +134,9 @@ SELECT rooms.*
 FROM rooms
 WHERE NOT EXISTS (
   SELECT 1
-  FROM reservations AS r
-  WHERE r.room_id = rooms.id
+  FROM reservation_rooms AS rr
+  JOIN reservations AS r ON r.id = rr.reservation_id
+  WHERE rr.room_id = rooms.id
     AND r.check_in_date < ?
     AND r.check_out_date > ?
 )
@@ -146,7 +147,7 @@ The parameters are `[requestedCheckOut, requestedCheckIn]`. This checks **the en
 
 Because only 24 rooms exist, the query returns at most 24 rows, regardless of reservation history size. The database still needs efficient index access to determine conflicts.
 
-## 6. Reservation queries and pagination
+## 6. Reservation queries, search and pagination
 
 **Active on selected day** (`getReservationsForDate`):
 
@@ -165,9 +166,11 @@ ORDER BY check_in_date ASC, id ASC
 LIMIT ? OFFSET ?;
 ```
 
-The UI uses `page=0`, `pageSize=20`, and `offset=page*pageSize`. The last page may be partially filled. `ORDER BY ..., id` makes ordering deterministic when several bookings share dates. A matching count query, surname/name/room search and last-page disabled state are **not implemented**. For very large histories, consider keyset pagination after measuring performance; the current 20-row pages are appropriate to start with.
+The UI uses `page=0`, `pageSize=20`, and `offset=page*pageSize`. The active reservation panel accepts a search string and applies `reservation_search MATCH ?` through FTS5 before `LIMIT/OFFSET`; the history panel uses the same index with `check_out_date < today`. Empty queries bypass the FTS predicate and non-matching queries return an empty list. Both reservation search fields display the number of loaded results below the field. For very large histories, consider keyset pagination after measuring performance.
 
-## 7. Indexes
+The guest panel uses the separate `guest_search` FTS5 index for partial multi-term searches. Indexes are rebuilt after guest/reservation mutations and at database initialization.
+
+## 7. Indexes and search virtual tables
 
 The current `createTables()` creates indexes for reservation dates, reservation-room lookup, and guest contact lookup. Verify indexes against the live database before adding more:
 
@@ -180,28 +183,51 @@ CREATE INDEX IF NOT EXISTS idx_reservation_rooms_room
 
 These duplicate indexes waste space and add write overhead. **Keep one** after checking existing DBs and planned migration steps. An index for paginated date ordering could be evaluated using `EXPLAIN QUERY PLAN`; wrapping an indexed column in `DATE()` may prevent efficient index use. Do not add indexes blindly.
 
+`DatabaseHelper.ensureSearchIndexes()` creates:
+
+```sql
+guest_search      USING fts5(guest_id UNINDEXED, guest_name, guest_surname,
+                             email, phone_number)
+reservation_search USING fts5(reservation_id, guest_id UNINDEXED, guest_name,
+                              guest_surname, email, phone_number, guest_count,
+                              check_in_date, check_out_date)
+```
+
+Reservation search terms are converted to quoted FTS5 prefix terms. The SQL must keep
+`MATCH` as its own predicate; wrapping it in an `OR` null-check causes SQLite to reject the
+statement with `unable to use function MATCH in the requested context`.
+
 ## 8. Test data and cleanup
 
-The current startup path calls `seedRooms()` only. No `seedReservations()` call is made from `main.dart`; any reservation seed helper or existing seed records should be treated as development data.
+The current startup path calls `seedRooms()` only. `ReservationRepository.seedFakeReservations({int count = 100})` is an explicit development helper and is not called from `main.dart`; any generated records should be treated as development data.
 
 **Current risk:** `seedRooms()` still runs on every start, although `INSERT OR IGNORE` prevents duplicate room numbers. Review and guard all development seed helpers before production.
 
-Preview test data before deleting:
+`ReservationRepository.removeReservationsOlderThanTwoMonths()` explicitly deletes reservations whose checkout is earlier than SQLite's calendar cutoff `DATE('now', '-2 months')`. It returns the deleted row count and rebuilds FTS indexes when needed. It is not scheduled automatically.
+
+The fake helper creates guests with `guest_name` values such as `Test Guest 1` and
+`guest_surname` values such as `Reservation 1`. Preview those records before deleting:
 
 ```sql
-SELECT id, room_id, guest_name, check_in_date, check_out_date
-FROM reservations
-WHERE email LIKE 'hotelflow-seed-%@example.invalid';
+SELECT r.id, g.guest_name, g.guest_surname,
+       r.check_in_date, r.check_out_date
+FROM reservations AS r
+JOIN guests AS g ON g.id = r.guest_id
+WHERE g.guest_name LIKE 'Test Guest %'
+  AND g.guest_surname LIKE 'Reservation %';
 ```
 
 Only in a test database, after checking the preview and taking a backup:
 
 ```sql
 DELETE FROM reservations
-WHERE email LIKE 'hotelflow-seed-%@example.invalid';
+WHERE guest_id IN (
+  SELECT id
+  FROM guests
+  WHERE guest_name LIKE 'Test Guest %'
+    AND guest_surname LIKE 'Reservation %'
+);
 ```
-
-The same cleanup can be run in the app with `DatabaseHelper.deleteSeedReservations()` after database initialization. It deletes matching test reservations, not unrelated reservations.
 
 Do not run destructive queries against real guest data without a verified backup.
 
@@ -211,20 +237,19 @@ The current normalized reservation assignment schema is:
 
 ```text
 reservations
-  id, guest_name, guest_surname, email, phone_number,
-  check_in_date, check_out_date, created_at, status
+  id, guest_id, guest_count, check_in_date, check_out_date, total_grosze
 
 reservation_rooms
-  id, reservation_id -> reservations.id,
+  reservation_id -> reservations.id,
   room_id -> rooms.id,
-  guest_count, bed_configuration
+  bed_configuration, extraBed
 ```
 
 This permits a *single logical reservation* that reserves several rooms. The current repository writes the reservation and its room assignments, but overlap validation and a fresh transactional availability check remain follow-up work. Store `BedConfigurations` values consistently and document compatibility when enum labels change. The calendar reads from `reservation_rooms` joined with `reservations`.
 
-## 10. Retention and backups — policy still to agree
+## 10. Retention and backups
 
-The reception client wants past bookings kept out of the main Reservations page. The proposed separate historical area is **not implemented**. An earlier idea was to retain ended bookings for roughly **seven days after check-out**, then remove them, but this is **not yet an approved deletion policy**. Before automating deletion, confirm applicable legal, accounting, operational and personal-data retention obligations. Consider preserving limited anonymized operational data if appropriate. With a desktop app, scheduled cleanup can run at startup or on relevant user actions; it does not run while the program is closed without an external scheduler.
+The main Reservations page excludes reservations whose checkout is before today. The Settings area provides a separate reservation-history panel for past bookings. The repository also exposes explicit cleanup after two calendar months from checkout, but this is not automatically invoked. Before scheduling deletion, confirm applicable legal, accounting, operational and personal-data retention obligations. With a desktop app, scheduled cleanup can run at startup or on relevant user actions; it does not run while the program is closed without an external scheduler.
 
 Before production: choose a durable non-synced database path, implement backup/restore, handle migration/versioning, and test corrupted/missing DB scenarios. `PRAGMA foreign_keys = ON` is connection-specific and should be set every time a new connection opens.
 
@@ -232,12 +257,12 @@ Before production: choose a durable non-synced database path, implement backup/r
 
 - [ ] A 24-room database has 22 rooms at base capacity 2 and rooms 12/24 at capacity 4.
 - [ ] Re-running room seeding does not duplicate rows.
-- [ ] Sample booking count is checked; do not assume 21 if conflicts exist.
-- [ ] Overlapping stays are rejected for the same room.
+- [ ] Fake reservation count is checked; the helper returns the number created.
+- [ ] Overlapping stays are rejected again at reservation save time.
 - [ ] Adjacent stays (check-out = next check-in) are permitted.
 - [ ] Check-in = check-out and check-out < check-in are rejected.
 - [ ] Room capacity/extra-bed constraints are enforced at booking save.
 - [ ] Current day is computed in the hotel's local timezone.
-- [ ] The 21st sample reservation appears on page 2 when there are 21 matching bookings.
+- [ ] FTS searches cover guest names, contact details, dates, guest count and reservation ID.
 - [ ] Sample data is disabled in release builds.
 - [ ] DB backup + recovery are tested before client deployment.

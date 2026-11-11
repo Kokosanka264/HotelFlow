@@ -61,21 +61,30 @@ class _ListViewPanelReservationsState extends State<ListViewPanelReservations> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: TextField(
-            decoration: const InputDecoration(
-              labelText: 'Wyszukaj rezerwacje',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onChanged: (value) {
-              setState(() {
-                searchQuery = value;
-                reservations = reservationRepository.getReservationsPage(
-                  widget.page,
-                  widget.pageSize,
-                  searchQuery,
-                );
-              });
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Wyszukaj rezerwacje',
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value;
+                    reservations = reservationRepository.getReservationsPage(
+                      widget.page,
+                      widget.pageSize,
+                      searchQuery,
+                    );
+                  });
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('Znaleziono: ${reservations.length}'),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -88,7 +97,9 @@ class _ListViewPanelReservationsState extends State<ListViewPanelReservations> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${reservation.guestName} ${reservation.guestSurname}'),
+                    Text(
+                      '${reservation.guestName} ${reservation.guestSurname}',
+                    ),
                     Text(
                       reservation.email?.trim().isNotEmpty == true
                           ? reservation.email!
