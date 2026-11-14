@@ -174,7 +174,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
                               );
                           isSearchPressed = true;
                         });
-                      } on ArgumentError catch (e) {
+                      } on ArgumentError {
                         showDialog(
                           context: context,
                           builder: (context) {

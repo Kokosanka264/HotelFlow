@@ -1,4 +1,5 @@
 import 'database_helper.dart';
+import 'calendar_date.dart';
 
 import 'package:hotel_app/models/room.dart';
 
@@ -19,6 +20,7 @@ class RoomRepository {
       [roomNumber, capacity, extrabed ? 1 : 0],
     );
   }
+
   List<Room> getAllRooms() {
     final rows = DatabaseHelper.database.select('SELECT * FROM rooms');
     return rows
@@ -34,8 +36,14 @@ class RoomRepository {
   }
 
   List<Room> getAvaliableRooms(DateTime checkIn, DateTime checkOut) {
-    final checkInString = checkIn.toIso8601String().split('T')[0];
-    final checkOutString = checkOut.toIso8601String().split('T')[0];
+    final normalizedCheckIn = calendarDate(checkIn);
+    final normalizedCheckOut = calendarDate(checkOut);
+    if (!normalizedCheckOut.isAfter(normalizedCheckIn)) {
+      throw ArgumentError('Check-out date must be after check-in date.');
+    }
+
+    final checkInString = calendarDateText(normalizedCheckIn);
+    final checkOutString = calendarDateText(normalizedCheckOut);
 
     final rows = DatabaseHelper.database.select(
       '''

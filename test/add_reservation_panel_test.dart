@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 Widget _buildForm({
   required List<Room> rooms,
+  int numberOfGuests = 3,
   ReservationRepository? reservationRepository,
   GuestRepository? guestRepository,
 }) {
@@ -17,7 +18,7 @@ Widget _buildForm({
       body: AddReservationPanel(
         checkIn: DateTime(2030, 4, 10),
         checkOut: DateTime(2030, 4, 12),
-        numberOfGuests: 3,
+        numberOfGuests: numberOfGuests,
         selectedRooms: rooms,
         reservationRepository: reservationRepository,
         guestRepository: guestRepository,
@@ -59,6 +60,42 @@ Room _room({required int id, required int capacity, bool extraBed = false}) {
   );
 }
 
+Future<void> _fillGuestStage(
+  WidgetTester tester, {
+  String email = '',
+  String firstName = 'Alex',
+  String lastName = 'Guest',
+}) async {
+  final fields = find.byType(TextFormField);
+  await tester.enterText(fields.at(0), firstName);
+  await tester.enterText(fields.at(1), lastName);
+  if (email.isNotEmpty) {
+    await tester.enterText(fields.at(2), email);
+  }
+}
+
+Future<void> _goToRoomStage(WidgetTester tester) async {
+  await tester.tap(find.text('Next'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectConfiguration(
+  WidgetTester tester,
+  BedConfigurations configuration,
+) async {
+  final dropdown = find.byType(DropdownButtonFormField<BedConfigurations>);
+  await tester.ensureVisible(dropdown);
+  await tester.tap(dropdown);
+  await tester.pumpAndSettle();
+  final label = switch (configuration) {
+    BedConfigurations.single => 'Pojedyńcze łóżko',
+    BedConfigurations.twin => 'Dwa oddzielne łóżka',
+    _ => throw ArgumentError('Test helper only supports one/two beds.'),
+  };
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   late Database database;
   late GuestRepository guestRepository;
@@ -83,62 +120,76 @@ void main() {
     database.close();
   });
 
-  testWidgets('rejects a malformed optional email address', (tester) async {
-    await tester.pumpWidget(_buildForm(rooms: [_room(id: 1, capacity: 2)]));
-
-    await tester.enterText(find.byType(TextFormField).at(0), 'Alex');
-    await tester.enterText(find.byType(TextFormField).at(1), 'Guest');
-    await tester.enterText(find.byType(TextFormField).at(2), 'not-an-email');
-    await tester.ensureVisible(find.text('Reserve'));
-    await tester.tap(find.text('Reserve'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Enter a valid email address.'), findsOneWidget);
-  });
-
-  testWidgets('requires a bed configuration for every selected room', (
+  testWidgets('stage one rejects a malformed optional email address', (
     tester,
   ) async {
     await tester.pumpWidget(_buildForm(rooms: [_room(id: 1, capacity: 2)]));
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'Alex');
-    await tester.enterText(find.byType(TextFormField).at(1), 'Guest');
-    await tester.ensureVisible(find.text('Reserve'));
-    await tester.tap(find.text('Reserve'));
+    await _fillGuestStage(tester, email: 'not-an-email');
+    await _goToRoomStage(tester);
+
+    expect(find.text('Enter a valid email address.'), findsOneWidget);
+    expect(find.text('Room configuration'), findsNothing);
+  });
+
+  testWidgets('stage two requires a bed configuration for every room', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_buildForm(rooms: [_room(id: 1, capacity: 2)]));
+
+    await _fillGuestStage(tester);
+    await _goToRoomStage(tester);
+    await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
 
     expect(find.text('Select a configuration.'), findsOneWidget);
+    expect(find.text('New reservation - Room configuration'), findsOneWidget);
   });
 
-  testWidgets(
-    'each room only offers configurations supported by its capacity',
-    (tester) async {
-      await tester.pumpWidget(
-        _buildForm(
-          rooms: [_room(id: 1, capacity: 2), _room(id: 2, capacity: 4)],
-        ),
-      );
+  testWidgets('stage two rejects insufficient configured capacity', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_buildForm(rooms: [_room(id: 1, capacity: 2)]));
 
-      final dropdowns = find.byType(DropdownButtonFormField<BedConfigurations>);
-      expect(dropdowns, findsNWidgets(2));
+    await _fillGuestStage(tester);
+    await _goToRoomStage(tester);
+    await _selectConfiguration(tester, BedConfigurations.single);
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
 
-      await tester.ensureVisible(dropdowns.at(0));
-      await tester.tap(dropdowns.at(0));
-      await tester.pumpAndSettle();
-      expect(find.text('Pojedyńcze łóżko'), findsOneWidget);
-      expect(find.text('Dwa oddzielne łóżka'), findsOneWidget);
-      expect(find.text('Cztery pojedyńcze łóżka'), findsNothing);
-      await tester.tap(find.text('Dwa oddzielne łóżka').last);
-      await tester.pumpAndSettle();
+    expect(
+      find.text('Selected room capacity is too small for the guests.'),
+      findsOneWidget,
+    );
+    expect(find.text('Prices and confirmation'), findsNothing);
+  });
 
-      await tester.ensureVisible(dropdowns.at(1));
-      await tester.tap(dropdowns.at(1));
-      await tester.pumpAndSettle();
-      expect(find.text('Cztery pojedyńcze łóżka'), findsOneWidget);
-      expect(find.text('Podwójne łóżko i dwa pojedyńcze'), findsOneWidget);
-      expect(find.text('Pojedyńcze łóżko'), findsNothing);
-    },
-  );
+  testWidgets('room stage only offers configurations supported by capacity', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildForm(rooms: [_room(id: 1, capacity: 2), _room(id: 2, capacity: 4)]),
+    );
+
+    await _fillGuestStage(tester);
+    await _goToRoomStage(tester);
+
+    final dropdowns = find.byType(DropdownButtonFormField<BedConfigurations>);
+    expect(dropdowns, findsNWidgets(2));
+    await tester.tap(dropdowns.at(0));
+    await tester.pumpAndSettle();
+    expect(find.text('Pojedyńcze łóżko'), findsOneWidget);
+    expect(find.text('Dwa oddzielne łóżka'), findsOneWidget);
+    expect(find.text('Cztery pojedyńcze łóżka'), findsNothing);
+    await tester.tap(find.text('Dwa oddzielne łóżka').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(dropdowns.at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Cztery pojedyńcze łóżka'), findsOneWidget);
+    expect(find.text('Podwójne łóżko i dwa pojedyńcze'), findsOneWidget);
+    expect(find.text('Pojedyńcze łóżko'), findsNothing);
+  });
 
   for (final useExistingGuest in [true, false]) {
     testWidgets(
@@ -156,26 +207,17 @@ void main() {
         await tester.pumpWidget(
           _buildForm(
             rooms: [_room(id: 1, capacity: 2)],
+            numberOfGuests: 1,
             reservationRepository: reservationRepository,
             guestRepository: guestRepository,
           ),
         );
 
-        await tester.enterText(find.byType(TextFormField).at(0), 'Alex');
-        await tester.enterText(find.byType(TextFormField).at(1), 'Guest');
-        await tester.enterText(
-          find.byType(TextFormField).at(2),
-          'alex@example.com',
-        );
-        final configurationDropdown = find.byType(
-          DropdownButtonFormField<BedConfigurations>,
-        );
-        await tester.ensureVisible(configurationDropdown);
-        await tester.tap(configurationDropdown);
+        await _fillGuestStage(tester, email: 'alex@example.com');
+        await _goToRoomStage(tester);
+        await _selectConfiguration(tester, BedConfigurations.single);
+        await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Pojedyńcze łóżko').last);
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('Reserve'));
         await tester.tap(find.text('Reserve'));
         await tester.pumpAndSettle();
 
@@ -203,31 +245,24 @@ void main() {
       await tester.pumpWidget(
         _buildForm(
           rooms: [room],
+          numberOfGuests: 2,
           reservationRepository: reservationRepository,
           guestRepository: guestRepository,
         ),
       );
 
-      await tester.enterText(find.byType(TextFormField).at(0), 'Alex');
-      await tester.enterText(find.byType(TextFormField).at(1), 'Guest');
-      final configurationDropdown = find.byType(
-        DropdownButtonFormField<BedConfigurations>,
-      );
-      await tester.ensureVisible(configurationDropdown);
-      await tester.tap(configurationDropdown);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Pojedyńcze łóżko').last);
-      await tester.pumpAndSettle();
-
+      await _fillGuestStage(tester);
+      await _goToRoomStage(tester);
+      await _selectConfiguration(tester, BedConfigurations.twin);
       final extraBedSwitch = find.byType(Switch);
       await tester.ensureVisible(extraBedSwitch);
-      expect(tester.widget<Switch>(extraBedSwitch).value, isFalse);
       if (useExtraBed) {
         await tester.tap(extraBedSwitch);
         await tester.pumpAndSettle();
       }
 
-      await tester.ensureVisible(find.text('Reserve'));
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Reserve'));
       await tester.pumpAndSettle();
 

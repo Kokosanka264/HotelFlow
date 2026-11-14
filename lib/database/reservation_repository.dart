@@ -1,5 +1,6 @@
 import 'package:hotel_app/models/bed_configuration.dart';
 
+import 'calendar_date.dart';
 import 'database_helper.dart';
 
 import 'package:hotel_app/database/guest_repository.dart';
@@ -48,8 +49,8 @@ class ReservationRepository {
       while (created < count && candidate < count * rooms.length * 2) {
         final checkIn = baseDate.add(Duration(days: candidate * 3));
         final checkOut = checkIn.add(const Duration(days: 2));
-        final checkInText = checkIn.toIso8601String().split('T')[0];
-        final checkOutText = checkOut.toIso8601String().split('T')[0];
+        final checkInText = calendarDateText(checkIn);
+        final checkOutText = calendarDateText(checkOut);
         Map<String, Object?>? selectedRoom;
 
         for (final room in rooms) {
@@ -161,11 +162,19 @@ class ReservationRepository {
     required DateTime checkInDate,
     required DateTime checkOutDate,
   }) {
+    final normalizedCheckIn = calendarDate(checkInDate);
+    final normalizedCheckOut = calendarDate(checkOutDate);
+    final totalCapacity = reservedRooms.entries.fold(
+      0,
+      (total, entry) =>
+          total + entry.value.spots + (extraBeds[entry.key] == true ? 1 : 0),
+    );
     if (guestName.trim().isEmpty ||
         guestSurname.trim().isEmpty ||
         guestCount <= 0 ||
-        !checkOutDate.isAfter(checkInDate) ||
+        !normalizedCheckOut.isAfter(normalizedCheckIn) ||
         reservedRooms.isEmpty ||
+        guestCount > totalCapacity ||
         extraBeds.keys.any((room) => !reservedRooms.containsKey(room)) ||
         extraBeds.entries.any((entry) => entry.value && !entry.key.extraBed) ||
         reservedRooms.entries.any(
@@ -200,8 +209,8 @@ class ReservationRepository {
         [
           resolvedGuestId,
           guestCount,
-          checkInDate.toIso8601String().split('T')[0],
-          checkOutDate.toIso8601String().split('T')[0],
+          calendarDateText(normalizedCheckIn),
+          calendarDateText(normalizedCheckOut),
           _nextReservationTotalGrosze ?? 0,
         ],
       );
@@ -241,10 +250,13 @@ class ReservationRepository {
 
   int removeReservationsOlderThanTwoMonths() {
     final database = DatabaseHelper.database;
-    database.execute('''
+    database.execute(
+      '''
       DELETE FROM reservations
-      WHERE DATE(check_out_date) < DATE('now', '-2 months')
-    ''');
+      WHERE DATE(check_out_date) < DATE(?, '-2 months')
+    ''',
+      [localTodayText()],
+    );
     final removed =
         database.select('SELECT changes() AS count').first['count'] as int;
     if (removed > 0) {
@@ -254,7 +266,7 @@ class ReservationRepository {
   }
 
   List<Reservation> getReservationsForDate(DateTime date) {
-    final String formattedDate = date.toIso8601String().split('T')[0];
+    final String formattedDate = calendarDateText(date);
     final rows = DatabaseHelper.database.select(
       '''
       SELECT reservations.*, guests.guest_name, guests.guest_surname,
@@ -289,7 +301,9 @@ class ReservationRepository {
     final searchClause = ftsQuery == null
         ? ''
         : 'AND reservation_search MATCH ?';
-    final parameters = ftsQuery == null ? <Object?>[] : <Object?>[ftsQuery];
+    final parameters = ftsQuery == null
+        ? <Object?>[localTodayText()]
+        : <Object?>[localTodayText(), ftsQuery];
     final rows = DatabaseHelper.database.select('''
       SELECT reservations.*, guests.guest_name, guests.guest_surname,
              guests.email, guests.phone_number
@@ -297,7 +311,7 @@ class ReservationRepository {
       JOIN guests ON guests.id = reservations.guest_id
       JOIN reservation_search ON reservation_search.reservation_id =
         reservations.id
-      WHERE DATE(reservations.check_out_date) < DATE('now')
+      WHERE DATE(reservations.check_out_date) < DATE(?)
         $searchClause
       ORDER BY reservations.check_out_date DESC, reservations.id ASC
       ''', parameters);
@@ -321,11 +335,14 @@ class ReservationRepository {
   }
 
   int countReservations() {
-    final result = DatabaseHelper.database.select('''
+    final result = DatabaseHelper.database.select(
+      '''
       SELECT COUNT(*) AS total
       FROM reservations
-      WHERE check_out_date >= DATE('now');
-    ''');
+      WHERE check_out_date >= DATE(?);
+    ''',
+      [localTodayText()],
+    );
     return result.first['total'] as int;
   }
 
@@ -340,8 +357,8 @@ class ReservationRepository {
         ? ''
         : 'AND reservation_search MATCH ?';
     final parameters = ftsQuery == null
-        ? <Object?>[pageSize, offset]
-        : <Object?>[ftsQuery, pageSize, offset];
+        ? <Object?>[localTodayText(), pageSize, offset]
+        : <Object?>[localTodayText(), ftsQuery, pageSize, offset];
     final rows = DatabaseHelper.database.select('''
       SELECT reservations.*, guests.guest_name, guests.guest_surname,
              guests.email, guests.phone_number
@@ -349,7 +366,7 @@ class ReservationRepository {
       JOIN guests ON guests.id = reservations.guest_id
       JOIN reservation_search ON reservation_search.reservation_id =
         reservations.id
-      WHERE Date(reservations.check_out_date) >= Date('now')
+      WHERE Date(reservations.check_out_date) >= Date(?)
         $searchClause
       ORDER BY reservations.check_in_date ASC, reservations.id ASC
       LIMIT ? OFFSET ?

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:hotel_app/database/calendar_date.dart';
 import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/database/pricing_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/models/bed_configuration.dart';
 import 'package:hotel_app/models/guest.dart';
 import 'package:hotel_app/models/room.dart';
-import 'package:hotel_app/widgets/room_configuration_section.dart';
+import 'package:hotel_app/Panels/reservation_guest_stage.dart';
+import 'package:hotel_app/Panels/reservation_price_stage.dart';
+import 'package:hotel_app/Panels/reservation_room_stage.dart';
 import 'package:sqlite3/sqlite3.dart' show SqliteException;
 
 class AddReservationPanel extends StatefulWidget {
@@ -33,9 +36,9 @@ class AddReservationPanel extends StatefulWidget {
 }
 
 class _AddReservationPanelState extends State<AddReservationPanel> {
-  final _formKey = GlobalKey<FormState>();
   final _selectedConfigurations = <int, BedConfigurations>{};
   final _selectedExtraBeds = <int, bool>{};
+  final _stageFormKeys = List.generate(3, (_) => GlobalKey<FormState>());
   late final _reservationRepository =
       widget.reservationRepository ?? ReservationRepository();
   late final _guestRepository = widget.guestRepository ?? GuestRepository();
@@ -43,6 +46,11 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
       (widget.pricingRepository ?? PricingRepository()).getSettings();
   final _roomRateControllers = <int, TextEditingController>{};
   final _extraBedRateControllers = <int, TextEditingController>{};
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  int _stage = 0;
   bool _isSubmitting = false;
 
   @override
@@ -58,36 +66,6 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     }
   }
 
-  String _dateText(DateTime date) {
-    return '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
-  }
-
-  String? _requiredText(String? value, String fieldName) {
-    if (value == null || value.trim().isEmpty) {
-      return '$fieldName is required.';
-    }
-    return null;
-  }
-
-  String? _validateEmail(String? value) {
-    final email = value?.trim() ?? '';
-    if (email.isNotEmpty &&
-        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      return 'Enter a valid email address.';
-    }
-    return null;
-  }
-
-  String? _validatePhoneNumber(String? value) {
-    final phone = value?.trim() ?? '';
-    if (phone.isNotEmpty && !RegExp(r'^[0-9+().\-\s]{6,20}$').hasMatch(phone)) {
-      return 'Enter a valid phone number.';
-    }
-    return null;
-  }
-
   String _plnText(int grosze) => (grosze / 100).toStringAsFixed(2);
 
   int? _parseGrosze(String value) {
@@ -98,7 +76,10 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     return (amount * 100).round();
   }
 
-  int _numberOfNights() => widget.checkOut.difference(widget.checkIn).inDays;
+  int _numberOfNights() =>
+      calendarDate(widget.checkOut)
+          .difference(calendarDate(widget.checkIn))
+          .inDays;
 
   int? _calculateTotalGrosze() {
     var nightlyTotal = 0;
@@ -128,23 +109,53 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
 
   bool get _hasEnoughSpots => _selectedSpots() >= widget.numberOfGuests;
 
-  Future<void> _submitReservation() async {
-    if (_isSubmitting) {
-      return;
+  bool _validateCurrentStage() {
+    final isValid = _stageFormKeys[_stage].currentState?.validate() ?? false;
+    if (!isValid) {
+      return false;
     }
-    if (!_hasEnoughSpots) {
-      return;
-    }
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (_selectedConfigurations.length != widget.selectedRooms.length) {
+    if (_stage == 0 &&
+        (widget.numberOfGuests <= 0 ||
+            !calendarDate(widget.checkOut)
+                .isAfter(calendarDate(widget.checkIn)))) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Select a bed configuration for each room.'),
+          content: Text('Guests and dates must be valid before continuing.'),
         ),
       );
+      return false;
+    }
+    if (_stage == 1 && !_hasEnoughSpots) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selected room capacity is too small for the guests.'),
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void _goNext() {
+    if (!_validateCurrentStage()) {
+      return;
+    }
+    setState(() {
+      _stage++;
+    });
+  }
+
+  void _goBack() {
+    if (_stage == 0 || _isSubmitting) {
+      return;
+    }
+    setState(() {
+      _stage--;
+    });
+  }
+
+  Future<void> _submitReservation() async {
+    if (_isSubmitting || !_validateCurrentStage()) {
       return;
     }
 
@@ -158,9 +169,6 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
     };
     final totalGrosze = _calculateTotalGrosze();
     if (totalGrosze == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Wprowadź poprawne ceny dla pokoi.')),
-      );
       return;
     }
 
@@ -214,17 +222,22 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
           ],
         ),
       );
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } on ArgumentError catch (error) {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(true);
-    } on ArgumentError catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.message?.toString() ?? 'Invalid reservation.'),
         ),
       );
     } on SqliteException catch (error) {
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not save reservation: $error')),
       );
@@ -267,16 +280,63 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
         ],
       ),
     );
-    if (confirmed == null) {
-      return null;
-    }
     return confirmed;
   }
 
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  String _stageTitle() {
+    return switch (_stage) {
+      0 => 'Guest details',
+      1 => 'Room configuration',
+      _ => 'Prices and confirmation',
+    };
+  }
+
+  Widget _stageContent() {
+    return switch (_stage) {
+      0 => ReservationGuestStage(
+        firstNameController: _firstNameController,
+        lastNameController: _lastNameController,
+        emailController: _emailController,
+        phoneController: _phoneController,
+        checkIn: widget.checkIn,
+        checkOut: widget.checkOut,
+        numberOfGuests: widget.numberOfGuests,
+      ),
+      1 => ReservationRoomStage(
+        rooms: widget.selectedRooms,
+        selectedConfigurations: _selectedConfigurations,
+        selectedExtraBeds: _selectedExtraBeds,
+        numberOfGuests: widget.numberOfGuests,
+        onConfigurationChanged: (room, configuration) {
+          setState(() {
+            if (configuration == null) {
+              _selectedConfigurations.remove(room.id);
+            } else {
+              _selectedConfigurations[room.id] = configuration;
+            }
+          });
+        },
+        onExtraBedChanged: (room, extraBed) {
+          setState(() {
+            _selectedExtraBeds[room.id] = extraBed;
+          });
+        },
+      ),
+      _ => ReservationPriceStage(
+        rooms: widget.selectedRooms,
+        roomRateControllers: _roomRateControllers,
+        extraBedRateControllers: _extraBedRateControllers,
+        checkIn: widget.checkIn,
+        checkOut: widget.checkOut,
+        guestName: _firstNameController.text.trim(),
+        guestSurname: _lastNameController.text.trim(),
+        numberOfGuests: widget.numberOfGuests,
+        parseGrosze: _parseGrosze,
+        calculateTotalGrosze: _calculateTotalGrosze,
+        onPriceChanged: () => setState(() {}),
+      ),
+    };
+  }
 
   @override
   void dispose() {
@@ -296,6 +356,7 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
+    final isLastStage = _stage == 2;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(16),
@@ -305,186 +366,75 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Nowa rezerwacja', style: TextStyle(fontSize: 24)),
+                  Expanded(
+                    child: Text(
+                      'New reservation - ${_stageTitle()}',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(false),
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                   ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  for (var index = 0; index < 3; index++)
+                    Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(right: index == 2 ? 0 : 6),
+                        height: 6,
+                        color: index <= _stage
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                      ),
+                    ),
                 ],
               ),
             ),
             Expanded(
               child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _firstNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'First name',
-                              ),
-                              validator: (value) =>
-                                  _requiredText(value, 'First name'),
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                            TextFormField(
-                              controller: _lastNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Last name',
-                              ),
-                              validator: (value) =>
-                                  _requiredText(value, 'Last name'),
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                            TextFormField(
-                              controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Email address',
-                              ),
-                              keyboardType: TextInputType.emailAddress,
-                              validator: _validateEmail,
-                            ),
-                            TextFormField(
-                              controller: _phoneController,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone number',
-                              ),
-                              keyboardType: TextInputType.phone,
-                              validator: _validatePhoneNumber,
-                            ),
-                            const SizedBox(height: 16),
-                            InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Check-in date',
-                                border: OutlineInputBorder(),
-                              ),
-                              child: Text(_dateText(widget.checkIn)),
-                            ),
-                            const SizedBox(height: 12),
-                            InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Check-out date',
-                                border: OutlineInputBorder(),
-                              ),
-                              child: Text(_dateText(widget.checkOut)),
-                            ),
-                            const SizedBox(height: 12),
-                            InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Total number of guests',
-                                border: OutlineInputBorder(),
-                              ),
-                              child: Text(widget.numberOfGuests.toString()),
-                            ),
-                            const SizedBox(height: 24),
-                            RoomConfigurationSection(
-                              rooms: widget.selectedRooms,
-                              selectedConfigurations: _selectedConfigurations,
-                              selectedExtraBeds: _selectedExtraBeds,
-                              numberOfGuests: widget.numberOfGuests,
-                              onConfigurationChanged: (room, configuration) {
-                                setState(() {
-                                  if (configuration == null) {
-                                    _selectedConfigurations.remove(room.id);
-                                  } else {
-                                    _selectedConfigurations[room.id] =
-                                        configuration;
-                                  }
-                                });
-                              },
-                              onExtraBedChanged: (room, extraBed) {
-                                setState(() {
-                                  _selectedExtraBeds[room.id] = extraBed;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Ceny rezerwacji',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            for (final room in widget.selectedRooms) ...[
-                              Text('Pokój ${room.roomNumber}'),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _roomRateControllers[room.id],
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Cena pokoju / noc',
-                                        suffixText: 'PLN',
-                                      ),
-                                      onChanged: (_) => setState(() {}),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextField(
-                                      controller:
-                                          _extraBedRateControllers[room.id],
-                                      enabled: room.extraBed,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Dodatkowe łóżko / noc',
-                                        suffixText: 'PLN',
-                                      ),
-                                      onChanged: (_) => setState(() {}),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                'Suma: ${_plnText(_calculateTotalGrosze() ?? 0)} PLN',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Delete'),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: _isSubmitting || !_hasEnoughSpots
-                                ? null
-                                : _submitReservation,
-                            child: const Text('Reserve'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                key: _stageFormKeys[_stage],
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: _stageContent(),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  const Spacer(),
+                  if (_stage > 0)
+                    TextButton(onPressed: _goBack, child: const Text('Back')),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : isLastStage
+                        ? _submitReservation
+                        : _goNext,
+                    child: Text(isLastStage ? 'Reserve' : 'Next'),
+                  ),
+                ],
               ),
             ),
           ],

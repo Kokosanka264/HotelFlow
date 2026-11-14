@@ -102,10 +102,9 @@ Dates are written by `ReservationRepository.addReservation()` as ISO calendar-da
 ### Important integrity gaps
 
 - **Double-booking is not prevented on regular writes.** `ReservationRepository.addReservation()` uses a database transaction but does not repeat the room-overlap query at save time. The Home search and fake-data helper perform availability checks earlier.
-- **Over-capacity reservations can be stored** by `addReservation()`: no SQL or repository validation checks `guest_count <= room.capacity` or optional extra-bed rules.
-- **Zero-night stays:** repository validation rejects `checkInDate.isAfter(checkOutDate)` but does not itself reject equality; table CHECK rejects equal stored date strings. Validate before writing, with clear UI feedback.
-- **Date normalization:** repository validity checks compare full `DateTime` values, then persist only the date. Normalize to calendar dates first.
-- **Current/upcoming boundary:** `getReservationsPage()` uses `DATE(check_out_date) >= DATE('now')`; SQLite `'now'` defaults to UTC, which may differ from local hotel dates near midnight. Choose hotel-local calendar dates explicitly.
+- **Capacity validation:** `addReservation()` now rejects bookings whose guest count exceeds the selected bed configurations plus enabled extra beds.
+- **Date normalization:** booking and availability inputs are normalized to local calendar dates before validation and persistence. Same-day check-in/check-out is rejected before SQLite writes.
+- **Current/upcoming boundary:** reservation queries now compare against the application server's local calendar date rather than SQLite's UTC `DATE('now')` value.
 - **Price breakdown:** only the final historical total is stored; individual room-price snapshots are not persisted.
 
 ## 5. Reservation overlap and availability

@@ -154,7 +154,7 @@ The current `main` branch contains the code described above, but some changes we
 ## Next milestones
 
 1. Add transactional overlap re-checking during reservation save.
-2. Strengthen date/timezone and capacity validation and add focused repository/widget tests.
+2. Add focused repository/widget tests for date and capacity validation.
 3. Add explicit scheduling or user-facing controls for two-month reservation cleanup after confirming retention requirements.
 4. Add reservation editing and improve refresh behavior across all panels.
 5. Improve local data storage, backups, deployment packaging, UI polish, and automated checks.

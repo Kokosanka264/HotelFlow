@@ -20,7 +20,6 @@ class DatabaseHelper {
     final dbPath = p.join(directory.path, 'hotel.db');
     _database = sqlite3.open(dbPath);
     _database!.execute('PRAGMA foreign_keys = ON;');
-    print('Database initialized at: $dbPath');
   }
 
   static void closeDatabase() {
@@ -133,15 +132,8 @@ ON guests(email);
 ON guests(phone_number);
 ''');
 
-     ensureSearchIndexes();
-     rebuildSearchIndexes();
-
-     final tables = database.select(
-       "SELECT name FROM sqlite_master WHERE type='table'",
-     );
-    for (final table in tables) {
-      print(table['name']);
-    }
+    ensureSearchIndexes();
+    rebuildSearchIndexes();
   }
 
   static void ensureSearchIndexes([Database? targetDatabase]) {
@@ -152,13 +144,11 @@ ON guests(phone_number);
         value TEXT NOT NULL
       )
     ''');
-    final reservationIndexVersion = target.select(
-      '''
+    final reservationIndexVersion = target.select('''
       SELECT value
       FROM search_index_metadata
       WHERE key = 'reservation_search_version'
-      ''',
-    );
+      ''');
     if (reservationIndexVersion.isEmpty ||
         reservationIndexVersion.first['value'] != '2') {
       target.execute('DROP TABLE IF EXISTS reservation_search');
@@ -195,9 +185,11 @@ ON guests(phone_number);
     final target = targetDatabase ?? database;
     ensureSearchIndexes(target);
 
-    final hasGuests = target.select(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guests'",
-    ).isNotEmpty;
+    final hasGuests = target
+        .select(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guests'",
+        )
+        .isNotEmpty;
     if (hasGuests) {
       target.execute('DELETE FROM guest_search');
       target.execute('''
@@ -210,9 +202,11 @@ ON guests(phone_number);
       ''');
     }
 
-    final hasReservations = target.select(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservations'",
-    ).isNotEmpty;
+    final hasReservations = target
+        .select(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservations'",
+        )
+        .isNotEmpty;
     if (hasReservations) {
       target.execute('DELETE FROM reservation_search');
       target.execute('''
