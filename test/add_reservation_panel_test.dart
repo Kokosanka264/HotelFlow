@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hotel_app/Panels/add_reservation_panel.dart';
+import 'package:hotel_app/Panels/Add Reservation/add_reservation_panel.dart';
 import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/models/bed_configuration.dart';
@@ -31,6 +31,16 @@ class _FakeReservationRepository extends ReservationRepository {
   int? guestId;
   Map<Room, bool> extraBeds = const {};
   int addReservationCalls = 0;
+  bool roomsStillAvailable = true;
+
+  @override
+  bool areRoomsStillAvailable({
+    required List<Room> availableRooms,
+    required DateTime checkInDate,
+    required DateTime checkOutDate,
+  }) {
+    return roomsStillAvailable;
+  }
 
   @override
   void addReservation({
@@ -269,4 +279,30 @@ void main() {
       expect(reservationRepository.extraBeds[room], useExtraBed);
     });
   }
+
+  testWidgets('shows an error when selected rooms are no longer available', (
+    tester,
+  ) async {
+    final reservationRepository = _FakeReservationRepository()
+      ..roomsStillAvailable = false;
+    await tester.pumpWidget(
+      _buildForm(
+        rooms: [_room(id: 1, capacity: 2)],
+        numberOfGuests: 1,
+        reservationRepository: reservationRepository,
+        guestRepository: guestRepository,
+      ),
+    );
+
+    await _fillGuestStage(tester);
+    await _goToRoomStage(tester);
+    await _selectConfiguration(tester, BedConfigurations.single);
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reserve'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Wystąpił problem. Sprobuj ponownie'), findsOneWidget);
+    expect(reservationRepository.addReservationCalls, 0);
+  });
 }

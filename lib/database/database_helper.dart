@@ -4,7 +4,67 @@ import 'package:path/path.dart' as p;
 
 class DatabaseHelper {
   static Database? _database;
+  static const List<String> requiredTables = [
+  'rooms',
+  'guests',
+  'reservations',
+  'reservation_rooms',
+  'pricing_settings',
+];
+static const int currentDatabaseVersion = 0;
+ static void setDatabase() {
+    if(isDatabaseEmpty){
+      createTables();
+    } else {
+       if(databaseVersion < currentDatabaseVersion){
+        print('Migration needed');
+       } else if(databaseVersion == currentDatabaseVersion){
+      
+         print('Database is up to date');
+       } else {
+      throw StateError('Database version is newer than expected. Please update the application.');
+       }
+  }
+}
+static void setDatabaseVersion(int version){
+    if(version<0){
+      throw ArgumentError('Database version cannot be negative.');
+    }
+    database.execute('PRAGMA user_version = $version;');
+}
+static void runMigration() {
+ database.execute('BEGIN TRANSACTION;');
+ try {
+ setDatabaseVersion(1);
 
+    database.execute('COMMIT;');
+} catch (e) {
+  database.execute('ROLLBACK;');
+  rethrow;
+}
+
+
+}
+static void runMigrations() {
+  int version = databaseVersion;
+
+  while (version < currentDatabaseVersion) {
+    // Jak sprawdzić, którą migrację wykonać?
+       switch (version) {
+      case 0:
+         migrate0to1();
+        version = 1;
+        break;
+      case 1:
+        migrate1to2();
+        version = 2;
+        break;
+      default:
+        throw StateError('Unknown database version: $version');
+    // Jak przejść do następnej wersji?
+  }
+} 
+}
   static Database get database {
     if (_database == null) {
       throw StateError(
@@ -14,19 +74,38 @@ class DatabaseHelper {
 
     return _database!;
   }
+  static int get databaseVersion{
+    final result = database.select('PRAGMA user_version;');
 
+    final version = result.first['user_version'] as int;
+    return version;
+  }
   static Future<void> initialize() async {
     final directory = await getApplicationDocumentsDirectory();
     final dbPath = p.join(directory.path, 'hotel.db');
     _database = sqlite3.open(dbPath);
     _database!.execute('PRAGMA foreign_keys = ON;');
   }
-
+  static bool get isDatabaseEmpty{
+    final result = database.select(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+    );
+    return result.isEmpty;
+  }
   static void closeDatabase() {
     _database?.close();
     _database = null;
   }
-
+  static bool hasExistingTable(String tableName) {
+    final bool hasTable = database.select(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name= ?",
+      [tableName],
+    ).isNotEmpty;
+    return hasTable;
+  }
+  static bool get hasExistingScheme {
+    return requiredTables.every((table) => hasExistingTable(table));
+  }
   static void createTables() {
     database.execute('''
       CREATE TABLE IF NOT EXISTS rooms (

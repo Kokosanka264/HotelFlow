@@ -6,9 +6,9 @@ import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/models/bed_configuration.dart';
 import 'package:hotel_app/models/guest.dart';
 import 'package:hotel_app/models/room.dart';
-import 'package:hotel_app/Panels/reservation_guest_stage.dart';
-import 'package:hotel_app/Panels/reservation_price_stage.dart';
-import 'package:hotel_app/Panels/reservation_room_stage.dart';
+import 'package:hotel_app/Panels/Add%20Reservation/reservation_guest_stage.dart';
+import 'package:hotel_app/Panels/Add Reservation/reservation_price_stage.dart';
+import 'package:hotel_app/Panels/Add%20Reservation/reservation_room_stage.dart';
 import 'package:sqlite3/sqlite3.dart' show SqliteException;
 
 class AddReservationPanel extends StatefulWidget {
@@ -18,6 +18,7 @@ class AddReservationPanel extends StatefulWidget {
     required this.checkOut,
     required this.numberOfGuests,
     required this.selectedRooms,
+    this.availableRooms,
     this.reservationRepository,
     this.guestRepository,
     this.pricingRepository,
@@ -27,6 +28,7 @@ class AddReservationPanel extends StatefulWidget {
   final DateTime checkOut;
   final int numberOfGuests;
   final List<Room> selectedRooms;
+  final List<Room>? availableRooms;
   final ReservationRepository? reservationRepository;
   final GuestRepository? guestRepository;
   final PricingRepository? pricingRepository;
@@ -192,6 +194,20 @@ class _AddReservationPanelState extends State<AddReservationPanel> {
         return;
       }
       final guestId = confirmation == true ? matchingGuest?.id : null;
+
+      final roomsWereAvailable = _reservationRepository.areRoomsStillAvailable(
+        availableRooms: widget.availableRooms ?? widget.selectedRooms,
+        checkInDate: widget.checkIn,
+        checkOutDate: widget.checkOut,
+      );
+      if (!roomsWereAvailable) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Wystąpił problem. Spróbuj ponownie')),
+          );
+        }
+        return;
+      }
 
       _reservationRepository.setNextReservationTotalGrosze(totalGrosze);
       _reservationRepository.addReservation(

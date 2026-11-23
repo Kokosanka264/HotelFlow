@@ -5,7 +5,7 @@ import 'package:hotel_app/widgets/date_input_field.dart';
 import 'package:hotel_app/database/room_repository.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 import 'package:hotel_app/database/pricing_repository.dart';
-import 'package:hotel_app/Panels/add_reservation_panel.dart';
+import 'package:hotel_app/Panels/Add Reservation/add_reservation_panel.dart';
 
 class HomePagePanel extends StatefulWidget {
   HomePagePanel({
@@ -59,6 +59,7 @@ class _HomePagePanelState extends State<HomePagePanel> {
           checkOut: selectedDateCheckOut,
           numberOfGuests: numberOfGuests,
           selectedRooms: selectedRooms,
+          availableRooms: selectedRooms,
           reservationRepository: widget.reservationRepository,
           pricingRepository: widget.pricingRepository,
         );

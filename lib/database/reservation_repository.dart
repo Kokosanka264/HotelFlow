@@ -5,11 +5,30 @@ import 'database_helper.dart';
 
 import 'package:hotel_app/database/guest_repository.dart';
 import 'package:hotel_app/database/reservation_rooms_repository.dart';
+import 'package:hotel_app/database/room_repository.dart';
 import 'package:hotel_app/models/reservation.dart';
 import 'package:hotel_app/models/room.dart';
 
 class ReservationRepository {
   int? _nextReservationTotalGrosze;
+
+  bool areRoomsStillAvailable({
+    required List<Room> availableRooms,
+    required DateTime checkInDate,
+    required DateTime checkOutDate,
+  }) {
+    final currentlyAvailableRooms = RoomRepository().getAvaliableRooms(
+      checkInDate,
+      checkOutDate,
+    );
+    final currentlyAvailableRoomIds = currentlyAvailableRooms
+        .map((room) => room.id)
+        .toSet();
+
+    return availableRooms.every(
+      (room) => currentlyAvailableRoomIds.contains(room.id),
+    );
+  }
 
   int seedFakeReservations({int count = 100}) {
     if (count <= 0) {

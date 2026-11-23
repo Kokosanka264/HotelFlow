@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hotel_app/database/pricing_repository.dart';
-import 'package:hotel_app/Panels/price_changing_panel.dart';
+import 'package:hotel_app/Panels/Settings/price_changing_panel.dart';
 import 'package:hotel_app/widgets/sidebar_button.dart';
-import 'package:hotel_app/Panels/reservation_history_panel.dart';
+import 'package:hotel_app/Panels/Settings/reservation_history_panel.dart';
 import 'package:hotel_app/database/reservation_repository.dart';
 class SettingsPanel extends StatefulWidget {
   const SettingsPanel({

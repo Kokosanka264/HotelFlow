@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hotel_app/Panels/guests_panel.dart';
+import 'package:hotel_app/Panels/Guest%20Panel/guests_panel.dart';
 import 'package:hotel_app/database/guest_repository.dart';
 import 'package:sqlite3/sqlite3.dart';
 

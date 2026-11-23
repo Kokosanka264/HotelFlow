@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'sidebar_panel.dart';
 import 'main_panel.dart';
-import 'settings_panel.dart';
+import 'Settings/settings_panel.dart';
 
 class MainFrame extends StatefulWidget {
   const MainFrame({super.key});

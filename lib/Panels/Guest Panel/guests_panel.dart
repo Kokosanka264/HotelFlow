@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_app/Panels/guests_list_view.dart';
+import 'package:hotel_app/Panels/Guest%20Panel/guests_list_view.dart';
 import 'package:hotel_app/database/guest_repository.dart';
 
 class GuestsPanel extends StatelessWidget {

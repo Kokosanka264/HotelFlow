@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hotel_app/Panels/guests_panel.dart';
+import 'package:hotel_app/Panels/Guest%20Panel/guests_panel.dart';
 
 import 'home_page_panel.dart';
 import 'calendar_panel.dart';
