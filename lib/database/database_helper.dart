@@ -22,7 +22,7 @@ class DatabaseHelper {
       try {
         createTables();
         setDatabaseVersion(currentDatabaseVersion);
-
+        seedRooms();
         database.execute('COMMIT;');
       } catch (e) {
         database.execute('ROLLBACK;');
@@ -79,16 +79,17 @@ class DatabaseHelper {
   }
 
   static Future<void> initialize() async {
-    final directory = await getApplicationDocumentsDirectory();
+    final directory = await getApplicationSupportDirectory();
     final dbPath = p.join(directory.path, 'hotel.db');
     _database = sqlite3.open(dbPath);
     _database!.execute('PRAGMA foreign_keys = ON;');
+    print('DATABASE LOCATION: $dbPath');
     setDatabase();
   }
 
   static bool get isDatabaseEmpty {
     final result = database.select(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*'",
     );
     return result.isEmpty;
   }
@@ -137,9 +138,11 @@ class DatabaseHelper {
         guest_count INTEGER NOT NULL,
         check_in_date TEXT NOT NULL,
         check_out_date TEXT NOT NULL,
-        total_grosze INTEGER NOT NULL DEFAULT 0 CHECK(total_grosze >= 0),
+        total_grosze INTEGER NOT NULL DEFAULT 0 CHECK(total_grosze >= 0), 
+        notes TEXT,
         CHECK(guest_count > 0),
         CHECK(CHECK_IN_DATE < CHECK_OUT_DATE),
+       
 
         FOREIGN KEY (guest_id)
     REFERENCES guests(id)
