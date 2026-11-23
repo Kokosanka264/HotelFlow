@@ -8,31 +8,8 @@ class DatabaseMigrations {
 
   static void setMigrations() {
     migrations
-      ..clear()
-      ..[0] = (database) {
-        final reservationsExists = database
-            .select(
-              "SELECT 1 FROM sqlite_master "
-              "WHERE type = 'table' AND name = 'reservations'",
-            )
-            .isNotEmpty;
-        if (!reservationsExists) {
-          throw StateError(
-            'Cannot migrate database: reservations table is missing.',
-          );
-        }
-
-        final columns = database.select('PRAGMA table_info(reservations)');
-        final hasTotalGrosze = columns.any(
-          (column) => column['name'] == 'total_grosze',
-        );
-        if (!hasTotalGrosze) {
-          database.execute(
-            'ALTER TABLE reservations '
-            'ADD COLUMN total_grosze INTEGER NOT NULL DEFAULT 0',
-          );
-        }
-      };
+      ..clear();
+      
   }
 
   static void runMigration(Database database, int fromVersion) {

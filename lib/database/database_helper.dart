@@ -16,10 +16,28 @@ class DatabaseHelper {
   static const int currentDatabaseVersion =
       DatabaseMigrations.currentDatabaseVersion;
   static void setDatabase() {
-    if (isDatabaseEmpty || !hasExistingScheme) {
-      createTables();
+    if (isDatabaseEmpty) {
+      database.execute('BEGIN TRANSACTION;');
+
+      try {
+        createTables();
+        setDatabaseVersion(currentDatabaseVersion);
+
+        database.execute('COMMIT;');
+      } catch (e) {
+        database.execute('ROLLBACK;');
+        rethrow;
+      }
+    } else {
+      final version = databaseVersion;
+      if (version < currentDatabaseVersion) {
+        runMigrations();
+      } else if (version > currentDatabaseVersion) {
+        throw StateError(
+          'Database version ($version) is newer than the application supports ($currentDatabaseVersion).',
+        );
+      }
     }
-    runMigrations();
   }
 
   static void setDatabaseVersion(int version) {
@@ -86,10 +104,6 @@ class DatabaseHelper {
       [tableName],
     ).isNotEmpty;
     return hasTable;
-  }
-
-  static bool get hasExistingScheme {
-    return requiredTables.every((table) => hasExistingTable(table));
   }
 
   static void createTables() {
