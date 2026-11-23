@@ -24,7 +24,6 @@ class _HotelFlowState extends State<HotelFlow> {
       DatabaseHelper.initialize(),
       Future<void>.delayed(const Duration(seconds: 5)),
     ]);
-    DatabaseHelper.createTables();
     DatabaseHelper.seedRooms();
   }
 

@@ -6,7 +6,7 @@
 
 HotelFlow uses an **embedded SQLite database** opened by the Dart `sqlite3` package (`sqlite3.open(dbPath)`), not a remote SQL server and not `sqflite`. The connection is held in `DatabaseHelper._database`. Initialization awaits `getApplicationDocumentsDirectory()`, joins the filename `hotel.db` using the `path` package, and executes `PRAGMA foreign_keys = ON;`.
 
-As coded, data resides in the user's application Documents directory. On Windows this can be redirected to OneDrive; a local, non-synced application-data directory is preferable for a production SQLite file. `DatabaseHelper.createTables()` creates schema at startup and performs the current additive `total_grosze` migration; there is still no general version table or rollback migration system.
+As coded, data resides in the user's application Documents directory. On Windows this can be redirected to OneDrive; a local, non-synced application-data directory is preferable for a production SQLite file. `DatabaseHelper.initialize()` creates or opens the schema and runs the versioned migrations from `lib/database/database_migrations.dart` before application data access. Migration changes run in transactions and advance SQLite's `PRAGMA user_version`.
 
 **Safety:** the database contains personal data (guest name, optionally email/phone). Never add `hotel.db` or real guest data to this public GitHub repository. Back up the database before changing schema or editing it in DB Browser for SQLite.
 
